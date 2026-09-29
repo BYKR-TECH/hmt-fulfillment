@@ -3,6 +3,11 @@
 import { useState } from 'react';
 import { BOOKING_COURIERS, COURIERS } from '@/lib/crm/constants';
 
+const PICKUP_LOCATIONS = [
+  { value: 'HSR GDP', label: 'HSR' },
+  { value: 'Sis Vars', label: 'CV Raman' }
+];
+
 export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pickupLocation = '' }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -14,7 +19,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const [courier, setCourier] = useState(order.courier || defaultCourierForOrder(order));
   const [shipmentType, setShipmentType] = useState('original');
   const [replacementPart, setReplacementPart] = useState('');
-  const [selectedPickupLocation, setSelectedPickupLocation] = useState(pickupLocation || 'Sis Vars');
+  const [selectedPickupLocation, setSelectedPickupLocation] = useState(normalizePickupLocation(pickupLocation));
   const [labelUrl, setLabelUrl] = useState(order.label_url || '');
   const [awbNumber, setAwbNumber] = useState(order.awb_number || '');
   const [deliveryDetails, setDeliveryDetails] = useState({
@@ -243,11 +248,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       <label>
         <span>Pickup location</span>
         <select name="pickup_location" value={selectedPickupLocation} onChange={event => setSelectedPickupLocation(event.target.value)}>
-          {!['Sis Vars', 'HSR GDP', 'Hold My Throttle HQ', 'Sai Preetham'].includes(selectedPickupLocation) ? <option value={selectedPickupLocation}>{selectedPickupLocation}</option> : null}
-          <option value="Sis Vars">Sis Vars</option>
-          <option value="HSR GDP">HSR GDP</option>
-          <option value="Hold My Throttle HQ">Hold My Throttle HQ</option>
-          <option value="Sai Preetham">Sai Preetham</option>
+          {PICKUP_LOCATIONS.map(location => <option value={location.value} key={location.value}>{location.label}</option>)}
         </select>
       </label>
       <label>
@@ -377,4 +378,10 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
 function defaultCourierForOrder(order = {}) {
   const country = String(order.shipping_country || order.country || 'IN').trim().toUpperCase();
   return country && country !== 'IN' && country !== 'INDIA' ? 'fedex' : 'delhivery';
+}
+
+function normalizePickupLocation(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['sis vars', 'cv raman', 'cv raman nagar'].includes(normalized)) return 'Sis Vars';
+  return 'HSR GDP';
 }

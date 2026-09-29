@@ -44,7 +44,7 @@ export function QuickBookButton({ order }) {
         courier: recommendation.code,
         service_code: recommendation.serviceCode,
         shipment_type: 'original',
-        pickup_location: 'Hold My Throttle HQ',
+        pickup_location: 'HSR GDP',
         phone: order.phone || order.shipping_phone || '',
         pincode: order.pincode || order.shipping_pincode || '',
         country: order.country || order.shipping_country || 'IN',
