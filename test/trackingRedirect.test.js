@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { carrierTrackingUrl, normalizeTrackingId, resolveTrackingRedirect } from '../lib/tracking-redirect.js';
+import { carrierTrackingUrl, normalizeTrackingId, resolveTrackingRedirect, trackingIdFromPath } from '../lib/tracking-redirect.js';
 
 test('builds official carrier tracking URLs', () => {
   assert.equal(carrierTrackingUrl('delhivery', '52270010001982'), 'https://www.delhivery.com/track/package/52270010001982');
@@ -12,6 +12,12 @@ test('rejects unsafe or malformed tracking IDs', () => {
   assert.equal(normalizeTrackingId('52270010001982'), '52270010001982');
   assert.equal(normalizeTrackingId('../login'), '');
   assert.equal(normalizeTrackingId('x'), '');
+});
+
+test('strips Meta literal placeholder prefixes from tracking links', () => {
+  assert.equal(normalizeTrackingId('{{1}}52270010001982'), '52270010001982');
+  assert.equal(normalizeTrackingId('%7B%7B1%7D%7D52270010001982'), '52270010001982');
+  assert.equal(trackingIdFromPath('/%7B%7B1%7D%7D52270010001982'), '52270010001982');
 });
 
 test('looks up the courier before redirecting', async () => {
