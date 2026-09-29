@@ -382,6 +382,6 @@ function defaultCourierForOrder(order = {}) {
 
 function normalizePickupLocation(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  if (['sis vars', 'cv raman', 'cv raman nagar'].includes(normalized)) return 'Sis Vars';
-  return 'HSR GDP';
+  if (['hsr', 'hsr gdp'].includes(normalized)) return 'HSR GDP';
+  return 'Sis Vars';
 }
