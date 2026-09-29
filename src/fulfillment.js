@@ -80,7 +80,8 @@ export function normalizeShipmentRecord(record) {
   const fedexPackageLineItem = fedexShipment.requestedPackageLineItems?.[0] || {};
   const responsePackage = record.delhiveryResponse?.packages?.[0] || {};
   const fedexPackage = record.delhiveryResponse?.output?.transactionShipments?.[0]?.pieceResponses?.[0] || {};
-  const direction = record.reverse ? 'reverse' : payloadShipment.payment_mode === 'Pickup' ? 'reverse' : 'forward';
+  const shiprocketShipment = record.requestPayload?.shipment || {};
+  const direction = record.reverse || record.requestPayload?.reverse ? 'reverse' : payloadShipment.payment_mode === 'Pickup' ? 'reverse' : 'forward';
   const service = international
     ? normalizeServiceCode(record.serviceCode || record.internationalService || fedexShipment.serviceType || record.requestPayload?.shipment?.service)
     : normalizeDomesticService(record.shippingMode || payloadShipment.md);
@@ -94,15 +95,15 @@ export function normalizeShipmentRecord(record) {
     flow: international ? 'international' : 'domestic',
     courier_code: record.courierCode || 'delhivery',
     courier_service_code: service,
-    service_mode: international ? fedexShipment.serviceType || record.requestPayload?.shipment?.service || null : payloadShipment.shipping_mode || null,
+    service_mode: international ? fedexShipment.serviceType || record.requestPayload?.shipment?.service || null : payloadShipment.shipping_mode || (record.courierCode === 'shiprocket' ? 'Shiprocket' : null),
     status: record.status || 'pending',
     waybill: record.waybill || responsePackage.waybill || record.delhiveryResponse?.waybill || fedexPackage.trackingNumber || null,
     upload_wbn: record.delhiveryResponse?.upload_wbn || null,
-    pickup_location: record.requestPayload?.pickup_location?.name || fedexShipment.shipper?.contact?.personName || null,
-    length_cm: numberAmount(payloadShipment.shipment_length || record.requestPayload?.shipment?.dimensionsCm?.length || fedexPackageLineItem.dimensions?.length),
-    width_cm: numberAmount(payloadShipment.shipment_width || record.requestPayload?.shipment?.dimensionsCm?.width || fedexPackageLineItem.dimensions?.width),
-    height_cm: numberAmount(payloadShipment.shipment_height || record.requestPayload?.shipment?.dimensionsCm?.height || fedexPackageLineItem.dimensions?.height),
-    weight_grams: numberAmount(payloadShipment.weight || record.requestPayload?.shipment?.weightGrams || weightToGrams(fedexPackageLineItem.weight)),
+    pickup_location: record.pickupLocation || record.requestPayload?.pickup_location?.name || shiprocketShipment.pickup_location || fedexShipment.shipper?.contact?.personName || null,
+    length_cm: numberAmount(payloadShipment.shipment_length || shiprocketShipment.dimensionsCm?.length || shiprocketShipment.length || fedexPackageLineItem.dimensions?.length),
+    width_cm: numberAmount(payloadShipment.shipment_width || shiprocketShipment.dimensionsCm?.width || shiprocketShipment.breadth || fedexPackageLineItem.dimensions?.width),
+    height_cm: numberAmount(payloadShipment.shipment_height || shiprocketShipment.dimensionsCm?.height || shiprocketShipment.height || fedexPackageLineItem.dimensions?.height),
+    weight_grams: numberAmount(payloadShipment.weight || shiprocketShipment.weightGrams || (record.courierCode === 'shiprocket' ? Number(shiprocketShipment.weight || 0) * 1000 : 0) || weightToGrams(fedexPackageLineItem.weight)),
     cod_amount: numberAmount(payloadShipment.cod_amount) || 0,
     request_payload: record.requestPayload || {},
     carrier_response: record.replacementPart

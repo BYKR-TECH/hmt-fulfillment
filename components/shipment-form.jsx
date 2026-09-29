@@ -10,6 +10,8 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const [rateBusy, setRateBusy] = useState(false);
   const [validationBusy, setValidationBusy] = useState(false);
   const [fedexRate, setFedexRate] = useState(null);
+  const [shiprocketQuotes, setShiprocketQuotes] = useState([]);
+  const [shiprocketCourierId, setShiprocketCourierId] = useState('');
   const [courier, setCourier] = useState(order.courier || defaultCourierForOrder(order));
   const [shipmentType, setShipmentType] = useState('original');
   const [replacementPart, setReplacementPart] = useState('');
@@ -44,7 +46,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       body.allow_multiple_shipments = 'true';
     }
     if (shipmentType !== 'original') body.allow_multiple_shipments = 'true';
-    if (['reverse', 'rto'].includes(shipmentType)) body.service_code = 'reverse_pickup';
+    if (['reverse', 'rto'].includes(shipmentType)) body.service_code = courier === 'shiprocket' ? 'shiprocket_return' : 'reverse_pickup';
     setBusy(true);
     try {
       const response = await fetch(`/api/crm/orders/${order.id}/shipment`, {
@@ -168,6 +170,37 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     setMessage(quote ? 'FedEx estimate loaded.' : 'FedEx returned no rate quotes for this shipment.');
   }
 
+  async function getShiprocketEstimates(event) {
+    event.preventDefault();
+    setMessage('');
+    setShiprocketQuotes([]);
+    setShiprocketCourierId('');
+    const form = new FormData(event.currentTarget.form);
+    const body = Object.fromEntries(form.entries());
+    body.courier = 'shiprocket';
+    setRateBusy(true);
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/shipping-estimate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        setMessage(data.error || 'Shiprocket estimates failed.');
+        return;
+      }
+      const quotes = data.quotes || [];
+      setShiprocketQuotes(quotes);
+      if (quotes[0]?.courierId != null) setShiprocketCourierId(String(quotes[0].courierId));
+      setMessage(quotes.length ? `${quotes.length} Shiprocket courier option${quotes.length === 1 ? '' : 's'} found.` : 'No Shiprocket courier is available for this route.');
+    } catch {
+      setMessage('Shiprocket estimates could not be loaded. Please try again.');
+    } finally {
+      setRateBusy(false);
+    }
+  }
+
   return (
     <form className="formGrid shipmentBookingForm" action={`/api/crm/orders/${order.id}/shipment`} method="post" onSubmit={submit}>
       {needsDeliveryFix ? (
@@ -201,6 +234,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         </>
       )}
       <input type="hidden" name="country" value={order.country || 'IN'} />
+      <input type="hidden" name="shiprocket_courier_id" value={shiprocketCourierId} />
       <div className="shipmentSource full">
         <div>
           <strong>{wixShipmentAvailable ? 'Wix shipment data found' : 'No Wix shipment found'}</strong>
@@ -250,7 +284,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       </label>
       <label>
         <span>Service</span>
-        <select name="service_code" value={['reverse', 'rto'].includes(shipmentType) ? 'reverse_pickup' : undefined} defaultValue={services[0]?.code || 'manual'} disabled={!services.length || ['reverse', 'rto'].includes(shipmentType)}>
+        <select name="service_code" value={['reverse', 'rto'].includes(shipmentType) ? (courier === 'shiprocket' ? 'shiprocket_return' : 'reverse_pickup') : undefined} defaultValue={services[0]?.code || 'manual'} disabled={!services.length || ['reverse', 'rto'].includes(shipmentType)}>
           {services.length ? services.map(service => (
             <option value={service.code} key={service.code}>{service.name}</option>
           )) : <option value="manual">Manual / not configured</option>}
@@ -336,6 +370,11 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
             </button>
           </>
         ) : null}
+        {courier === 'shiprocket' ? (
+          <button type="button" className="secondary" onClick={getShiprocketEstimates} disabled={rateBusy}>
+            {rateBusy ? 'Checking Shiprocket…' : 'Get Shiprocket estimates'}
+          </button>
+        ) : null}
         {message ? <span className="muted">{message}</span> : null}
       </div>
       {courier === 'fedex' && fedexRate ? (
@@ -345,6 +384,27 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
             <p className="muted">
               {[fedexRate.serviceName, fedexRate.rateType, fedexRate.transitTime, fedexRate.commitmentDate].filter(Boolean).join(' · ')}
             </p>
+          </div>
+        </div>
+      ) : null}
+      {courier === 'shiprocket' && shiprocketQuotes.length ? (
+        <div className="shipmentSource full">
+          <div className="full">
+            <strong>Available Shiprocket services</strong>
+            <p className="muted">Select a courier, then book the shipment or return above.</p>
+            <div className="shiprocketQuoteList">
+              {shiprocketQuotes.map(quote => (
+                <label className="shiprocketQuote" key={quote.courierId}>
+                  <input type="radio" name="shiprocket_quote" checked={shiprocketCourierId === String(quote.courierId)} onChange={() => setShiprocketCourierId(String(quote.courierId))} />
+                  <span>
+                    <strong>{quote.courierName}</strong>
+                    <span className="muted">
+                      {[quote.rate != null ? `${quote.currency || 'INR'} ${quote.rate}` : '', quote.estimatedDeliveryDate || (quote.estimatedDeliveryDays ? `${quote.estimatedDeliveryDays} days` : ''), quote.mode, quote.rating != null ? `Rating ${quote.rating}` : ''].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         </div>
       ) : null}
