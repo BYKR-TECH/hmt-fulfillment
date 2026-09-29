@@ -203,6 +203,11 @@ export async function upsertWixFulfillmentTracking(order, fulfillments = []) {
       }
     });
 
+    if (shipment?.writeSkipped) {
+      if (shipment) persisted += 1;
+      continue;
+    }
+
     await updateOrderWixFulfillment(order.id, {
       status: 'synced_from_wix',
       fulfillmentId: fulfillment.id || '',
@@ -399,6 +404,9 @@ async function upsertSupabaseShipment(supabase, record) {
       : await findLatestSupabaseShipment(supabase, record.orderId));
   const before = existing || null;
   const shipmentRow = existing ? mergeShipmentUpdate(existing, normalized) : normalized;
+  if (existing && record.source === 'wix-fulfillment' && shipmentRowsEqual(existing, shipmentRow)) {
+    return { ...denormalizeShipment(existing), writeSkipped: true };
+  }
   const nextRecord = existing
     ? await writeSupabaseShipment(supabase, 'patch', `id=eq.${existing.id}`, {
         ...shipmentRow,
@@ -409,11 +417,18 @@ async function upsertSupabaseShipment(supabase, record) {
   await writeAudit(supabase, 'shipments', nextRecord.id, existing ? 'update' : 'insert', before, nextRecord, 'shipment upsert');
   await syncOrderShipmentSummary(supabase, nextRecord);
 
-  if (record.requestPayload || record.delhiveryResponse || record.error) {
+  if (record.source !== 'wix-fulfillment' && (record.requestPayload || record.delhiveryResponse || record.error)) {
     await insertShipmentAttempt(supabase, nextRecord, record);
   }
 
   return denormalizeShipment(nextRecord);
+}
+
+function shipmentRowsEqual(existing, next) {
+  return Object.entries(next).every(([key, value]) => {
+    if (key === 'id' || key === 'created_at' || key === 'updated_at') return true;
+    return JSON.stringify(existing[key] ?? null) === JSON.stringify(value ?? null);
+  });
 }
 
 function mergeShipmentUpdate(existing, normalized) {
