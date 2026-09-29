@@ -41,6 +41,7 @@ test('only the bulk document page is publicly accessible', () => {
 
 test('tracking IDs are public only on the tracking hostname', () => {
   assert.equal(isPublicRoute(requestFor('track.holdmythrottle.com', '/52270010001982')), true);
+  assert.equal(isPublicRoute(requestFor('track.holdmythrottle.com', '/%7B%7B1%7D%7D52270010001982')), true);
   assert.equal(isPublicRoute(requestFor('ops.holdmythrottle.com', '/52270010001982')), false);
   assert.equal(isPublicRoute(requestFor('track.holdmythrottle.com', '/orders')), false);
 });
