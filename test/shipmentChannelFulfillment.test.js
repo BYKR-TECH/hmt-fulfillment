@@ -106,6 +106,7 @@ test('booked sync still does not create Wix fulfillment', async () => {
 test('tracking status picked-up fulfills Wix', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
+  const whatsapp = [];
   let order = {
     id: 'order-1',
     wix_order_id: 'wix-1',
@@ -132,11 +133,19 @@ test('tracking status picked-up fulfills Wix', async () => {
   try {
     const result = await fulfillChannelsForTrackingStatusChange(
       { id: 'ship-1', order_id: 'order-1', waybill: 'AWB-TRACK', status: 'in-transit', courier_code: 'delhivery' },
-      baseConfig()
+      baseConfig(),
+      {
+        sendPickupConfirmation: async (sentOrder, sentShipment) => {
+          whatsapp.push({ order: sentOrder.id, waybill: sentShipment.waybill });
+          return { status: 'sent' };
+        }
+      }
     );
     assert.equal(requests.some(r => r.url.includes('/create-fulfillment')), true);
     assert.equal(order.wix_fulfillment_status, 'fulfilled');
     assert.ok(result.wix);
+    assert.deepEqual(whatsapp, [{ order: 'order-1', waybill: 'AWB-TRACK' }]);
+    assert.equal(result.whatsapp.status, 'sent');
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.SUPABASE_URL;

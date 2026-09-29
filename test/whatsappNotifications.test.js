@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sendPickupConfirmationOnce } from '../lib/crm/whatsapp-notifications.js';
+import { sendPickupConfirmationOnce, shipmentConfirmationEligibility } from '../lib/crm/whatsapp-notifications.js';
 
 test('pickup confirmation sends once and saves a shipment-specific duplicate guard', async () => {
   const writes = [];
@@ -32,6 +32,17 @@ test('pickup confirmation skips a shipment that already has a duplicate guard', 
 test('pickup confirmation remains disabled until production enablement', async () => {
   const result = await sendPickupConfirmationOnce({ id: 'order-1' }, { waybill: 'AWB123' }, { config: config(false) });
   assert.equal(result.reason, 'shipment-confirmations-disabled');
+});
+
+test('manual shipment confirmation is available for an active booked outbound shipment', () => {
+  assert.equal(shipmentConfirmationEligibility({ waybill: 'AWB123', status: 'booked' }).allowed, true);
+  assert.equal(shipmentConfirmationEligibility({ waybill: 'AWB123', status: 'pickup_pending' }).allowed, true);
+});
+
+test('manual shipment confirmation rejects unbooked, reverse, and inactive shipments', () => {
+  assert.equal(shipmentConfirmationEligibility({ status: 'booked' }).allowed, false);
+  assert.equal(shipmentConfirmationEligibility({ waybill: 'AWB123', status: 'booked', direction: 'reverse' }).allowed, false);
+  assert.equal(shipmentConfirmationEligibility({ waybill: 'AWB123', status: 'cancelled' }).allowed, false);
 });
 
 function config(enabled) {

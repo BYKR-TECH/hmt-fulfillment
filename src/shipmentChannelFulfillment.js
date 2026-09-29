@@ -89,10 +89,20 @@ export async function fulfillChannelsForTrackingStatusChange(shipment, config, o
   const order = await loadOrder(orderId);
   if (!order) return { skipped: true, reason: 'order-not-found' };
 
-  return fulfillShipmentChannelsOnPickup(order, shipment, config, {
+  const result = await fulfillShipmentChannelsOnPickup(order, shipment, config, {
     softFailWix: true,
     ...options
   });
+  try {
+    const sendConfirmation = options.sendPickupConfirmation || (await import('../lib/crm/whatsapp-notifications.js')).sendPickupConfirmationOnce;
+    result.whatsapp = await sendConfirmation(order, shipment, { config });
+  } catch (error) {
+    console.error(
+      `[whatsapp-shipment-confirmation] tracking callback soft-fail for shipment ${shipment?.id || shipment?.waybill || ''}: ${error.message}`
+    );
+    result.whatsapp = { status: 'failed', error: error.message };
+  }
+  return result;
 }
 
 /**
