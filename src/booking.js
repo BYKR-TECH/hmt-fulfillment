@@ -20,6 +20,8 @@ export async function bookWixOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation,
     deliveryOverride: metadata.deliveryOverride
   });
   const pending = await upsertShipment({
@@ -117,6 +119,8 @@ function normalizeShippingMode(value) {
 function extractWaybill(response) {
   return (
     response?.waybill ||
+    response?.awb_code ||
+    response?.response?.data?.awb_code ||
     response?.output?.transactionShipments?.[0]?.masterTrackingNumber ||
     response?.output?.transactionShipments?.[0]?.pieceResponses?.[0]?.trackingNumber ||
     response?.packages?.[0]?.waybill ||
@@ -154,6 +158,8 @@ export async function bookAmazonOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation,
     deliveryOverride: metadata.deliveryOverride
   });
   const pending = await upsertShipment({
