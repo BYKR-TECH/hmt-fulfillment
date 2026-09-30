@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Cog,
   Gauge,
+  History,
   Landmark,
   LogOut,
   MessageCircle,
@@ -34,6 +35,7 @@ const nav = [
   ['/finance', 'Finance', Landmark],
   ['/automation', 'Automation', Cog],
   ['/integration-errors', 'Integration Errors', AlertTriangle],
+  ['/changelog', 'Changelog', History],
   ['/settings', 'Settings', Settings]
   ,['/admin/users', 'User management', Users]
 ];
