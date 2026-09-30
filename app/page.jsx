@@ -1,14 +1,12 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
 import { OrderTable } from '@/components/order-table';
-import { StatusPill } from '@/components/status-pill';
-import { getDashboardSummary, listOrders, listTasks } from '@/lib/crm/data';
+import { getDashboardSummary, listOrders } from '@/lib/crm/data';
 
 export default async function DashboardPage() {
-  const [summary, orders, tasks] = await Promise.all([
+  const [summary, orders] = await Promise.all([
     getDashboardSummary(),
-    listOrders({ limit: 8 }),
-    listTasks()
+    listOrders({ limit: 8 })
   ]);
 
   const metrics = [
@@ -17,8 +15,6 @@ export default async function DashboardPage() {
     ['Shipments to book', summary.shipmentsToBook],
     ['Pickup pending', summary.pickupPending],
     ['Delivered today', summary.deliveredToday],
-    ['Installation follow-ups due', summary.installationDue],
-    ['Feedback calls due', summary.feedbackDue],
     ['Open issues', summary.openIssues]
   ];
 
@@ -73,25 +69,6 @@ export default async function DashboardPage() {
           <Link href="/orders" className="button secondary">View all</Link>
         </div>
         <OrderTable orders={orders} />
-      </section>
-
-      <section className="panel">
-        <div className="panelHeader">
-          <h2>Urgent tasks</h2>
-          <Link href="/tasks" className="button secondary">Task list</Link>
-        </div>
-        <div className="panelBody grid">
-          {tasks.slice(0, 5).map(task => (
-            <div className="taskCard" key={task.id}>
-              <strong>{task.title}</strong>
-              <span className="subtle">Order {task.order_number} · {task.assigned_operator || 'Unassigned'}</span>
-              <div className="toolbar" style={{ marginTop: 8 }}>
-                <StatusPill value={task.priority} />
-                <StatusPill value={task.status} />
-              </div>
-            </div>
-          ))}
-        </div>
       </section>
     </AppShell>
   );

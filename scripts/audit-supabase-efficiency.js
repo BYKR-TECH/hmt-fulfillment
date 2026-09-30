@@ -62,7 +62,6 @@ async function fetchTableCounts(baseUrl, key) {
     'shipments',
     'shipment_events',
     'courier_events',
-    'tasks',
     'integration_errors',
     'status_history',
     'packing_checklists'

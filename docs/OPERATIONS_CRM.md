@@ -15,7 +15,6 @@ Core tables:
 - `packing_checklists`: per-order checklist items.
 - `installation_status`: install outcome, installation method, installer, date, bike photo, issue linkage, and garage contact details.
 - `feedback`: feedback, review, UGC, issue escalation.
-- `tasks`: operator work queue.
 - `notes`: internal comments and customer/support notes.
 - `status_history`: audit trail for status and field changes.
 - `attachments`: Supabase Storage object refs for labels, invoices, packing photos, bike photos.
@@ -37,7 +36,6 @@ CRM API routes:
 - `POST /api/crm/orders/:id/shipment`
 - `POST /api/crm/orders/:id/packing`
 - `POST /api/crm/orders/:id/communication`
-- `GET /api/crm/tasks`
 - `GET /api/crm/integration-errors`
 
 Integration-ready routes:
@@ -60,7 +58,6 @@ Pages:
 - `/pickup`: booked outbound shipments awaiting pickup; Mark picked up records collection and sends Wix fulfillment. If Wix fails, retry fulfillment under Already picked up.
 - `/installation`: installation follow-up
 - `/feedback`: feedback/review queue
-- `/tasks`: operator task board
 - `/integration-errors`: failed sync/webhook/API page
 - `/settings`: roles, courier, auth, integration readiness
 - `/login`: Supabase email/password sign-in
@@ -115,11 +112,11 @@ Chatwoot:
 4. Operations books courier shipment or manually adds AWB.
 5. Pickup queue tracks ready, pending, failed pickup, and manual override cases.
 6. Courier webhooks/polling update in-transit, OFD, delivered, failed, RTO, lost/damaged.
-7. Delivery triggers installation pending and follow-up tasks.
+7. Delivery triggers installation pending.
 8. Support records whether installation was DIY, at the Hold My Throttle Bengaluru store, or at a nearby garage.
 9. For garage installs, support captures garage name, contact person, phone, email, address, city, state, and pincode.
 10. Support sends guide/video, marks installation outcome, or creates an issue.
-11. Feedback workflow creates Day 3, 7, 14, 30 follow-up tasks.
+11. Feedback status and communication history track follow-up.
 12. Completed orders retain timeline, notes, attachments, courier events, feedback, and support history.
 
 ## Setup
