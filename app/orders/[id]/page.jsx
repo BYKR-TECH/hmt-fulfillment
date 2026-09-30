@@ -34,7 +34,6 @@ export default async function OrderDetailPage({ params, searchParams }) {
   });
   const shipments = [...(detail.shipments || [])].sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
   const latestShipment = shipments[0] || null;
-  const openTasks = (detail.tasks || []).filter(task => !['done', 'closed', 'completed'].includes(String(task.status || '').toLowerCase()));
   const shippingAddress = [
     order.shipping_name || order.customer_name,
     order.shipping_phone || order.phone,
@@ -99,7 +98,6 @@ export default async function OrderDetailPage({ params, searchParams }) {
         <article className="card metric"><span>Installation</span><StatusPill value={order.installation_status} /></article>
         <article className="card metric"><span>Feedback</span><StatusPill value={order.feedback_status} /></article>
         <article className="card metric"><span>Payment</span><StatusPill value={order.payment_status || detail.payment?.payment_status || 'not_set'} /><small>{formatCurrency(detail.payment?.paid_amount || order.order_value, order.currency)}</small></article>
-        <article className="card metric"><span>Open work</span><strong>{openTasks.length}</strong><small>{order.assigned_operator || 'No owner assigned'}</small></article>
       </section>
 
       <section className="grid orderOpsGrid">
@@ -286,23 +284,10 @@ export default async function OrderDetailPage({ params, searchParams }) {
       <section className="grid twoCol">
         <div className="grid">
           <section className="panel">
-            <div className="panelHeader"><h2>Open tasks</h2></div>
-            <div className="panelBody taskList">
-              {openTasks.length ? openTasks.map(task => (
-                <div className="taskRow" key={task.id}>
-                  <strong>{task.title}</strong>
-                  <small>{task.assigned_operator || 'Unassigned'} · {task.priority || 'normal'} · {formatDate(task.due_date) || 'No due date'}</small>
-                  {task.notes ? <p className="muted">{task.notes}</p> : null}
-                </div>
-              )) : <p className="muted">No open tasks for this order.</p>}
-            </div>
-          </section>
-
-          <section className="panel">
             <div className="panelHeader"><h2>Notes</h2></div>
-            <div className="panelBody taskList">
+            <div className="panelBody detailList">
               {detail.notes?.length ? detail.notes.map(note => (
-                <div className="taskRow" key={note.id}>
+                <div className="detailRow" key={note.id}>
                   <strong>{note.actor_name || 'Operator'}</strong>
                   <small>{formatDateTime(note.created_at)}</small>
                   <p className="muted">{note.body || note.note || note.notes}</p>

@@ -6,7 +6,7 @@ Use a feature branch and pull request to `main`. Validated commits on `main` dep
 
 This repository now contains a Next.js internal Operations CRM for Hold My Throttle plus the legacy Wix/Delhivery shipment service.
 
-The CRM manages orders from Wix, Amazon, and manual entry; fulfillment; packing; shipment booking; pickup and delivery tracking; installation follow-up; feedback; reviews; support; tasks; integration errors; and audit history in Supabase.
+The CRM manages orders from Wix, Amazon, and manual entry; fulfillment; packing; shipment booking; pickup and delivery tracking; installation follow-up; feedback; reviews; support; integration errors; and audit history in Supabase.
 
 ## WhatsApp order updates (Raspberry Pi)
 
@@ -77,7 +77,6 @@ WIX_SYNC_PAGE_SIZE=25 npm run sync:wix-crm
 - `/pickup`
 - `/installation`
 - `/feedback`
-- `/tasks`
 - `/integration-errors`
 - `/settings`
 

@@ -76,7 +76,7 @@ export function AutomationActions({ batches = [] }) {
         {batches.length ? (
           <div className="grid">
             {batches.map(batch => (
-              <div className="taskCard" key={batch.id}>
+              <div className="activityCard" key={batch.id}>
                 <strong>{batch.batch_number}</strong>
                 <span className="subtle">{batch.status} · {(batch.fedex_export_items || []).length} orders</span>
                 <div className="toolbar" style={{ marginTop: 8 }}>

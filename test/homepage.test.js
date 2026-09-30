@@ -11,7 +11,7 @@ const { transformSync } = require('next/dist/build/swc');
 
 // Render the actual route with controlled data and synchronous boundary doubles.
 // No production database, session, or shipment side effects are involved.
-async function renderHomepage({ orders = [], tasks = [] } = {}) {
+async function renderHomepage({ orders = [] } = {}) {
   const summary = {
     newOrders: 7, ordersToPack: 6, shipmentsToBook: 5, pickupPending: 4,
     deliveredToday: 3, installationDue: 2, feedbackDue: 1, openIssues: 0,
@@ -25,8 +25,7 @@ async function renderHomepage({ orders = [], tasks = [] } = {}) {
     '@/components/status-pill': { StatusPill: ({ value }) => React.createElement('span', null, value) },
     '@/lib/crm/data': {
       getDashboardSummary: async () => summary,
-      listOrders: async options => { assert.deepEqual(JSON.parse(JSON.stringify(options)), { limit: 8 }); return orders; },
-      listTasks: async () => tasks
+      listOrders: async options => { assert.deepEqual(JSON.parse(JSON.stringify(options)), { limit: 8 }); return orders; }
     }
   };
   const { code } = transformSync(readFileSync(new URL('../app/page.jsx', import.meta.url), 'utf8'), {
@@ -40,21 +39,20 @@ async function renderHomepage({ orders = [], tasks = [] } = {}) {
 
 test('home route renders the operations dashboard and operational links', async () => {
   const html = await renderHomepage({
-    orders: [{ id: 'order-1', order_number: 'TEST-10587' }],
-    tasks: [{ id: 'task-1', title: 'Arrange pickup', order_number: 'TEST-10587', priority: 'high', status: 'pending' }]
+    orders: [{ id: 'order-1', order_number: 'TEST-10587' }]
   });
-  for (const text of ['Operations command center', 'Recent orders', 'Urgent tasks', 'New orders', 'Orders to pack', 'Shipments to book', 'Pickup pending', 'Delivered today', 'Installation follow-ups due', 'Feedback calls due', 'Open issues', 'TEST-10587', 'Arrange pickup', 'Unassigned']) assert.ok(html.includes(text), `Missing ${text}`);
+  for (const text of ['Operations command center', 'Recent orders', 'New orders', 'Orders to pack', 'Shipments to book', 'Pickup pending', 'Delivered today', 'Open issues', 'TEST-10587']) assert.ok(html.includes(text), `Missing ${text}`);
   assert.match(html, /New orders<\/span><strong>7<\/strong>/);
-  for (const path of ['/orders', '/shipments', '/tasks']) assert.ok(html.includes(`href="${path}"`));
+  for (const path of ['/orders', '/shipments']) assert.ok(html.includes(`href="${path}"`));
   assert.match(html, /action="\/orders"/);
   assert.match(html, /name="q"/);
   assert.doesNotMatch(html, /mongersmint|Book my demo/i);
 });
 
-test('home route renders with empty order and task queues', async () => {
+test('home route renders with empty order queue', async () => {
   const html = await renderHomepage();
   assert.match(html, /Operations command center/);
   assert.match(html, /Recent orders/);
-  assert.match(html, /Urgent tasks/);
+  assert.doesNotMatch(html, /Urgent tasks|Task list|href="\/tasks"/);
   assert.doesNotMatch(html, /mongersmint|undefined|NaN/i);
 });

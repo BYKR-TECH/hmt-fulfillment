@@ -63,7 +63,7 @@ export default async function AutomationPage() {
           <div className="panelHeader"><h2>Recent runs</h2></div>
           <div className="panelBody grid">
             {(data.runs || []).map(run => (
-              <div className="taskCard" key={run.id}>
+              <div className="activityCard" key={run.id}>
                 <strong>{run.trigger}</strong>
                 <span className="subtle">{run.started_at ? new Date(run.started_at).toLocaleString('en-IN') : ''}</span>
                 <div className="toolbar" style={{ marginTop: 8 }}>
@@ -82,7 +82,7 @@ export default async function AutomationPage() {
         <div className="panelHeader"><h2>Open automation errors</h2></div>
         <div className="panelBody grid">
           {(data.errors || []).map(error => (
-            <div className="taskCard" key={error.id}>
+            <div className="activityCard" key={error.id}>
               <strong>{error.integration} · {error.operation}</strong>
               <span className="subtle">{error.occurred_at ? new Date(error.occurred_at).toLocaleString('en-IN') : ''}</span>
               <p className="muted">{error.message}</p>

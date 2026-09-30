@@ -128,7 +128,7 @@ These options must be visible on the order detail page, saved without changing s
 
 1. Packing operator cannot edit payment/order value: direct Supabase RLS denies order value updates for packing role.
 2. Support operator cannot book shipment: RLS/API guard denies shipment mutation for support role.
-3. Admin can edit all fields: admin can update orders, users, integrations, shipments, installation, feedback, tasks, and notes.
+3. Admin can edit all fields: admin can update orders, users, integrations, shipments, installation, feedback, and notes.
 
 ## Edge Cases
 
@@ -137,7 +137,7 @@ These options must be visible on the order detail page, saved without changing s
 3. Amazon order has incomplete address: order imports with correction task.
 4. Same customer places two orders: duplicate detection allows genuinely different product/date combinations.
 5. Order is cancelled after shipment booked: order status becomes cancelled and cancellation audit is retained.
-6. Shipment is delivered but customer has not installed: installation status remains pending and follow-up tasks stay open.
+6. Shipment is delivered but customer has not installed: installation status remains pending.
 7. Customer reports issue after installation: feedback escalates issue and creates support task/warranty case.
 
 ## Booked shipments awaiting pickup

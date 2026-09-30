@@ -37,10 +37,3 @@ select null, 'AMZ-406-2281443', 'AMZ-2281443', 'amazon', customer_id, address_id
 union all
 select null, 'MAN-10072', 'MAN-10072', 'manual', customer_id, address_id, 'paid', 14999, 'INR', now() - interval '6 days', 'installation_pending', 'delivered', 'guide_sent', 'feedback_pending', 'Triumph Scrambler 400X', 'HMT Cruise Kit - Scrambler 400X', 1, 'Anika', array['manual','install-help'], 'Needs video install guide in English.' from rohan
 on conflict(source, external_order_id) do update set internal_status = excluded.internal_status, shipment_status = excluded.shipment_status, updated_at = now();
-
-insert into tasks(title, assigned_operator, due_date, priority, status, notes, order_id)
-select 'Verify new Wix order', 'Nisha', now(), 'high', 'open', 'Confirm bike model and address before packing.', id from orders where external_order_id = 'WIX-10091'
-union all
-select 'Follow up after failed pickup', 'Ravi', now(), 'medium', 'in_progress', 'Courier pickup pending since yesterday.', id from orders where external_order_id = 'AMZ-406-2281443'
-union all
-select 'Send installation video', 'Anika', now() + interval '1 day', 'medium', 'open', 'Customer asked for English guide.', id from orders where external_order_id = 'MAN-10072';

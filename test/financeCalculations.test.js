@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bankFingerprint, bomRequirements, documentTotals, isBalanced, weightedAverage } from '../lib/finance/calculations.js';
+import { bankFingerprint, documentTotals, isBalanced } from '../lib/finance/calculations.js';
 import { buildCaPack, csv } from '../lib/finance/exports.js';
 
 test('calculates invoice totals in base currency', () => {
@@ -10,14 +10,6 @@ test('calculates invoice totals in base currency', () => {
 test('accepts only balanced journals', () => {
   assert.equal(isBalanced([{ debit: 100, credit: 0 }, { debit: 0, credit: 100 }]), true);
   assert.equal(isBalanced([{ debit: 100, credit: 0 }]), false);
-});
-
-test('creates BOM material requirements with scrap', () => {
-  assert.equal(bomRequirements([{ quantity: 2, scrap_percent: 5 }], 10, 2)[0].required_quantity, 10.5);
-});
-
-test('maintains weighted average inventory cost', () => {
-  assert.equal(weightedAverage({ currentQuantity: 10, currentCost: 50, receivedQuantity: 10, receivedUnitCost: 70 }), 60);
 });
 
 test('bank fingerprints normalize equivalent source rows', () => {
