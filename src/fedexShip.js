@@ -22,7 +22,10 @@ export function mapWixOrderToFedexShipment(order, config, options = {}) {
       country: delivery.address?.country
     }
   }, config, {
-    orderNumber: options.orderNumberOverride || order?.number || order?.id || ''
+    orderNumber: options.orderNumberOverride || order?.number || order?.id || '',
+    exportClearance: options.exportClearance,
+    invoiceNumber: options.invoiceNumber,
+    departmentNumber: options.departmentNumber
   });
 }
 
@@ -55,6 +58,22 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
   const customsValue = positiveNumber(row.customsValue, 1);
   const commodityQuantity = Math.max(1, Math.trunc(positiveNumber(row.commodityQuantity, 1)));
   const currency = row.currencyType || 'INR';
+  const csb5 = options.exportClearance === 'csb5';
+  const invoiceNumber = String(options.invoiceNumber || '').trim();
+  const departmentNumber = String(options.departmentNumber || '').trim();
+  if (csb5 && (!invoiceNumber || !departmentNumber)) {
+    throw new Error('CSB V booking requires the commercial invoice number and Department Number output from the FedEx CSB5 utility.');
+  }
+  if (csb5 && (row.senderCountry !== 'IN' || !row.recipientCountry || ['IN', 'INDIA'].includes(row.recipientCountry))) {
+    throw new Error('CSB V booking requires an export shipment from India.');
+  }
+  const customerReferences = [
+    ...(options.orderNumber ? [{ customerReferenceType: 'CUSTOMER_REFERENCE', value: String(options.orderNumber) }] : []),
+    ...(csb5 ? [
+      { customerReferenceType: 'INVOICE_NUMBER', value: invoiceNumber },
+      { customerReferenceType: 'DEPARTMENT_NUMBER', value: departmentNumber }
+    ] : [])
+  ];
 
   return {
     labelResponseOptions: 'LABEL',
@@ -131,7 +150,8 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
           }
         ],
         commercialInvoice: {
-          shipmentPurpose: row.purposeOfShipment || 'SOLD'
+          shipmentPurpose: csb5 ? 'SOLD' : row.purposeOfShipment || 'SOLD',
+          ...(csb5 ? { customerReferences: [{ customerReferenceType: 'INVOICE_NUMBER', value: invoiceNumber }] } : {})
         }
       },
       labelSpecification: {
@@ -140,9 +160,7 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
       },
       requestedPackageLineItems: [
         {
-          customerReferences: options.orderNumber
-            ? [{ customerReferenceType: 'CUSTOMER_REFERENCE', value: String(options.orderNumber) }]
-            : undefined,
+          customerReferences: customerReferences.length ? customerReferences : undefined,
           weight: {
             units: fedexWeightUnits(row.weightUnits),
             value: packageWeight
