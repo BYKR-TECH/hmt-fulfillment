@@ -393,7 +393,7 @@ function normalizeWaybillKey(waybill) {
   return String(waybill || '').trim().toUpperCase();
 }
 
-function isCourierTrackingEnabled(courierCode, config) {
+export function isCourierTrackingEnabled(courierCode, config) {
   if (courierCode === 'fedex') return Boolean(config.fedex?.trackingEnabled);
   if (courierCode === 'shiprocket') return Boolean(config.shiprocket?.trackingEnabled);
   return Boolean(config.delhivery.trackingEnabled);
@@ -403,6 +403,37 @@ function fetchCourierTracking(courierCode, waybills, config) {
   if (courierCode === 'fedex') return fetchFedexTracking(waybills, config);
   if (courierCode === 'shiprocket') return fetchShiprocketTracking(waybills, config);
   return fetchDelhiveryTracking(waybills, config);
+}
+
+export async function reconcileShipmentTrackingNow(shipment, config, options = {}) {
+  const courierCode = courierCodeForTracking(shipment);
+  const waybill = String(shipment?.waybill || '').trim();
+  if (!waybill) return { skipped: true, reason: 'missing-waybill' };
+  if (!isCourierTrackingEnabled(courierCode, config)) return { skipped: true, reason: 'tracking-not-enabled' };
+
+  const trackingMap = await fetchCourierTracking(courierCode, [waybill], config);
+  const pkg = trackingMap.get(waybill) || trackingMap.get(normalizeWaybillKey(waybill));
+  if (!pkg) return { skipped: true, reason: 'tracking-not-found' };
+  const liveStatus = normalizeCourierStatus(courierCode, getCourierLiveStatus(courierCode, pkg));
+  const events = extractCourierTrackingEvents(courierCode, pkg);
+  if (shipment.id && events.length) await saveTrackingEvents(shipment.id, events);
+  const changed = Boolean(liveStatus && shouldUpdateStatus(shipment.status, liveStatus));
+  const updatedShipment = {
+    ...shipment,
+    status: changed ? liveStatus : shipment.status,
+    last_event_at: new Date().toISOString()
+  };
+  if (changed && shipment.id) {
+    await updateShipmentTracking(shipment.id, { status: liveStatus, lastEventAt: updatedShipment.last_event_at });
+  }
+  if (options.onShipmentStatusChanged && isPickupOrDeliveryStatus(updatedShipment.status)) {
+    await options.onShipmentStatusChanged(updatedShipment);
+  }
+  return { ok: true, changed, status: updatedShipment.status, shipment: updatedShipment };
+}
+
+function isPickupOrDeliveryStatus(status) {
+  return ['picked-up', 'dispatched', 'in-transit', 'out-for-delivery', 'delivered'].includes(String(status || '').trim().toLowerCase().replaceAll('_', '-'));
 }
 
 function normalizeCourierStatus(courierCode, rawStatus) {

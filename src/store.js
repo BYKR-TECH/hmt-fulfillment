@@ -316,7 +316,7 @@ export async function listActiveShipmentWaybills() {
   for (let offset = 0; ; offset += pageSize) {
     const page = await supabase.select(
       'shipments',
-      'select=id,waybill,order_id,status,courier_code' +
+      'select=id,waybill,order_id,status,courier_code,tracking_url,updated_at' +
         '&waybill=not.is.null' +
         '&status=not.in.(delivered,rto,cancelled,failed)' +
         '&order=updated_at.asc,id.asc' +
@@ -676,6 +676,7 @@ function denormalizeShipment(row) {
     labelUrl: row.label_url || '',
     labelFormat: row.label_format || '',
     labelError: row.label_error || '',
+    trackingUrl: row.tracking_url || '',
     error: row.error || '',
     message: row.message || '',
     source: row.courier_code,
@@ -691,12 +692,12 @@ function orderSelect() {
 
 function orderSelectColumns({ includeBuyerCalls }) {
   return [
-    'select=id,wix_order_id,order_number,status,payment_status,fulfillment_status,currency,total_amount,shipping_amount,selected_shipping_title',
+    'select=id,wix_order_id,external_order_id,order_number,source,status,payment_status,fulfillment_status,currency,total_amount,shipping_amount,selected_shipping_title,whatsapp_number,courier,awb_number,tracking_url,shipping_address_id',
     'shipment_status,shipment_waybill,shipment_courier_code,shipment_service_code,shipment_service_mode,shipment_booked_at,shipment_updated_at',
     'shipment_label_url,shipment_label_format,shipment_label_error',
     'wix_fulfillment_status,wix_fulfillment_id,wix_fulfillment_synced_at,wix_fulfillment_error',
     includeBuyerCalls ? 'buyer_call_status,buyer_call_notes,buyer_called_at' : '',
-    'source_created_at,source_updated_at,updated_at,raw_order,customers(name,email,phone)',
+    'source_created_at,source_updated_at,updated_at,raw_order,customers(name,email,phone,wix_contact_id),shipping_address:customer_addresses!orders_shipping_address_id_fkey(name,phone,country)',
     'pick_pack_tasks(id,status,picked_at,packed_at,notes)'
   ].filter(Boolean).join(',');
 }

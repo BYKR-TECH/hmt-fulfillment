@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildOrderConfirmationTemplate, formatChatwootDailyTracker, getChatwootDailyTracker, sendChatwootOrderConfirmation, sendChatwootShipmentConfirmation, summarizeAssigneeBacklog } from '../lib/crm/chatwoot.js';
+import { buildOrderConfirmationTemplate, formatChatwootDailyTracker, getChatwootDailyTracker, sendChatwootAbandonedCart, sendChatwootDeliveryConfirmation, sendChatwootOrderConfirmation, sendChatwootShipmentConfirmation, summarizeAssigneeBacklog } from '../lib/crm/chatwoot.js';
 
 const bounds = {
   date: '2026-09-14',
@@ -177,6 +177,42 @@ test('sends the approved pickup template with tracking button parameters', async
   assert.deepEqual(body.template_params.processed_params.body, { 1: 'John', 2: '#12345', 3: '52270010001890' });
   assert.deepEqual(body.template_params.processed_params.buttons, [{ type: 'url', parameter: '52270010001890', url: 'https://track.holdmythrottle.com/{{1}}', variables: ['1'] }]);
 });
+
+test('sends the approved delivery template with customer and order variables', async () => {
+  const requests = [];
+  const fetchImpl = existingConversationFetch(requests, 19801);
+  await sendChatwootDeliveryConfirmation({ order_number: '#12345', customers: { name: 'John', phone: '9876543210' } }, {
+    inboxId: '1', fetchImpl,
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
+  });
+  const body = JSON.parse(requests.find(request => request.url.pathname.endsWith('/conversations/1303/messages')).options.body);
+  assert.equal(body.template_params.name, 'delivery_confirmation_1');
+  assert.deepEqual(body.template_params.processed_params.body, { 1: 'John', 2: '#12345' });
+});
+
+test('sends named abandoned-cart variables and the product-page slug', async () => {
+  const requests = [];
+  const fetchImpl = existingConversationFetch(requests, 19802);
+  await sendChatwootAbandonedCart({ customer_name: 'Asha', phone: '9876543210', items: [{ name: 'Cruise Control', url: 'https://www.holdmythrottle.com/product-page/himalayan-450-cruise-control' }] }, {
+    inboxId: '1', fetchImpl,
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
+  });
+  const body = JSON.parse(requests.find(request => request.url.pathname.endsWith('/conversations/1303/messages')).options.body);
+  assert.equal(body.template_params.name, 'abandoned_cart');
+  assert.deepEqual(body.template_params.processed_params.body, { a: 'Asha', b: 'Cruise Control' });
+  assert.equal(body.template_params.processed_params.buttons[0].parameter, 'himalayan-450-cruise-control');
+});
+
+function existingConversationFetch(requests, messageId) {
+  return async (input, options = {}) => {
+    const url = new URL(input);
+    requests.push({ url, options });
+    if (url.pathname.endsWith('/contacts/search')) return jsonResponse({ payload: [{ id: 56, phone_number: '+919876543210' }] });
+    if (url.pathname.endsWith('/contacts/56/conversations')) return jsonResponse({ payload: [{ id: 1303, inbox_id: 1 }] });
+    if (url.pathname.endsWith('/conversations/1303/messages')) return jsonResponse({ id: messageId, status: 'sent' });
+    return jsonResponse({ error: 'unexpected' }, 404);
+  };
+}
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
