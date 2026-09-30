@@ -2,6 +2,42 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildInvoiceModel, buildInvoicePdf } from '../lib/crm/invoice-pdf.js';
 
+test('WooCommerce invoices apply discounts once to the original line subtotal', () => {
+  const detail = {
+    order: {
+      source: 'woocommerce', shipping_country: 'MD', currency: 'USD',
+      order_value: 137.45, shipping_amount: 29.99, discount_amount: 91.54
+    },
+    items: [{
+      product_name: 'Cruise Control Kit', quantity: 1,
+      item_price: 107.46, total_price: 107.46,
+      raw_line_item: { price: 107.46, subtotal: '199.00', total: '107.46' }
+    }]
+  };
+  const model = buildInvoiceModel(detail);
+  assert.equal(model.items[0].unitPrice, 199);
+  assert.equal(model.items[0].discount, 91.54);
+  assert.equal(model.items[0].lineTotal, 107.46);
+  assert.equal(model.totals.taxableValue, model.totals.grandTotal);
+  const label = buildInvoicePdf(detail, { format: 'international-label' }).toString('latin1');
+  assert.match(label, /Unit price  USD 107.46/);
+  assert.match(label, /USD 137.45/);
+  assert.doesNotMatch(label, /USD 15.92/);
+});
+
+test('WooCommerce line discounts stay with their original items and quantities', () => {
+  const model = buildInvoiceModel({
+    order: { source: 'woocommerce', shipping_country: 'US', order_value: 170, discount_amount: 30 },
+    items: [
+      { quantity: 2, item_price: 35, total_price: 70, raw_line_item: { subtotal: '100', total: '70' } },
+      { quantity: 1, item_price: 100, total_price: 100, raw_line_item: { subtotal: '100', total: '100' } }
+    ]
+  });
+  assert.deepEqual(model.items.map(item => item.lineTotal), [70, 100]);
+  assert.deepEqual(model.items.map(item => item.discount), [30, 0]);
+  assert.equal(model.totals.taxableValue, 170);
+});
+
 test('builds Indian tax invoice with 18% GST included in final price', () => {
   process.env.DEFAULT_SELLER_GST_TIN = '29ABCDE1234F1Z5';
   const model = buildInvoiceModel({
