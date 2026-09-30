@@ -68,6 +68,7 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
       hasDirectCourierBookingIdentity: () => true,
       isDirectCourierBookableSource: () => true
     },
+    './shipment-cancellation.js': {},
     '@/lib/supabase/server': { createServiceClient: () => client },
     './order-search': {}, '@/src/shipmentValidation.js': {}, './seed': {},
     '@/src/store.js': { findOrderById: async () => order },
