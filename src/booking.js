@@ -20,7 +20,12 @@ export async function bookWixOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    fedexPayload: metadata.fedexPayload,
+    exportClearance: metadata.exportClearance,
+    invoiceNumber: metadata.invoiceNumber,
+    departmentNumber: metadata.departmentNumber,
+    adCode: metadata.adCode
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -154,7 +159,12 @@ export async function bookAmazonOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    fedexPayload: metadata.fedexPayload,
+    exportClearance: metadata.exportClearance,
+    invoiceNumber: metadata.invoiceNumber,
+    departmentNumber: metadata.departmentNumber,
+    adCode: metadata.adCode
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -237,7 +247,12 @@ export async function bookWooCommerceOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    fedexPayload: metadata.fedexPayload,
+    exportClearance: metadata.exportClearance,
+    invoiceNumber: metadata.invoiceNumber,
+    departmentNumber: metadata.departmentNumber,
+    adCode: metadata.adCode
   });
   const pending = await upsertShipment({
     ...metadata,
