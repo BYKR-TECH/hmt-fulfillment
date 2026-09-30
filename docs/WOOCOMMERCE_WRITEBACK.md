@@ -2,18 +2,23 @@
 
 When an Ops shipment is **booked** (AWB assigned) or **picked_up**, Ops writes carrier / AWB / tracking meta back to the linked WooCommerce order.
 
-Ops owns shipments. Woo → Ops pull/ingest already exists. This path is the reverse: Ops → Woo meta only.
+Ops owns shipments. Woo → Ops pull/ingest already exists. This path writes tracking meta and reconciles shipped/delivered order statuses.
 
 ## Behaviour
 
 | Event | Trigger | Woo action |
 | --- | --- | --- |
 | **booked** | Manual AWB save (`bookShipment` / `save_manual_awb`), courier book path via `syncBookedShipmentToWix` companion, automation channel sync for `source=woocommerce` | Upsert order `meta_data` with status `booked` |
-| **picked_up** | Operator **Mark picked up** (`markShipmentPickedUp`), or carrier tracking ≥ picked-up via `fulfillShipmentChannelsOnPickup` | Upsert same meta with status `picked_up` |
+| **picked_up / in transit / out for delivery** | Operator **Mark picked up**, or carrier tracking ≥ picked-up | Upsert current tracking meta; change eligible Processing orders to Shipped |
+| **delivered** | Carrier delivery scans | Complete the order only when all non-cancelled outbound legs are delivered |
+| **reconciliation** | Existing 15-minute automation cycle | Retry status updates, including unchanged tracking and already-delivered legs |
 
 - Only orders with `source=woocommerce` and `woo_order_id` (or Woo `external_order_id`) are written.
-- **Meta-only**: WC order `status` is **not** changed on booked or picked_up (avoids premature `completed`).
-- **No** customer email / WhatsApp from this path.
+- Booking/manual AWB entry remains **meta-only** and does not mark an order shipped.
+- The custom Woo `shipped` status must already be registered on the connected site.
+- Only paid Ops orders and live Woo Processing/Shipped orders are advanced. Completed orders never regress; cancelled, refunded, pending, failed, and on-hold statuses are preserved.
+- Split shipments cannot complete until every outbound leg is delivered. Reverse legs, cancelled attempts, and failed booking attempts without an AWB are excluded.
+- WooCommerce/plugin status-transition hooks may send their configured notifications. This path does not directly send WhatsApp.
 - **Fail soft**: Woo errors are logged; Ops booking / pickup still succeeds.
 - **Idempotent**: safe to retry; meta keys are upserted by key; `_hmt_ops_shipment_id` + `_hmt_ops_synced_at` support reconciliation.
 
@@ -61,12 +66,13 @@ curl -fsS -X PUT \
   }'
 ```
 
-Note: no `"status"` field in the body.
+This booking payload has no `"status"` field. Separate reconciled status writes use `{"status":"shipped"}` or `{"status":"completed"}` after reading the current Woo status.
 
 ## Code map
 
 - Client helpers: `src/woocommerce.js` (`buildHmtShipmentMetaData`, `updateWooCommerceOrderShipmentMeta`)
 - Sync orchestration: `src/wooShipmentSync.js`
+- Status reconciliation: `src/wooOrderStatusSync.js`
 - Call sites: `lib/crm/data.js` (`finishManualShipmentSave`, `markShipmentPickedUp`), `src/booking.js` (`syncBookedShipmentToWix` companion), `lib/crm/automation.js` (Woo branch of channel sync)
 
 ## Operator enable steps (saipi)

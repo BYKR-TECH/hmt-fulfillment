@@ -35,6 +35,12 @@ test('accepts wrapped Woo payloads and maps pending payment', () => {
   assert.equal(normalized.order.status, 'pending');
 });
 
+test('shipped Woo orders remain paid and fulfilled when pulled back into Ops', () => {
+  const normalized = normalizeWooCommerceOrder({ ...sampleWooOrder(), status: 'shipped' });
+  assert.equal(normalized.order.payment_status, 'paid');
+  assert.equal(normalized.order.fulfillment_status, 'fulfilled');
+});
+
 test('Woo ingest auth accepts x-ops-woo-secret or Bearer', () => {
   const env = { WOO_OPS_INGEST_SECRET: 'woo-secret' };
   const headerReq = {

@@ -209,7 +209,7 @@ test('fulfillShipmentChannelsOnPickup writes Woo meta via tracking handler', asy
     });
     assert.equal(wooPuts.length, 1);
     assert.equal(wooPuts[0].meta_data.find(m => m.key === '_hmt_awb').value, 'AWB777');
-    assert.equal(wooPuts[0].meta_data.find(m => m.key === '_hmt_shipment_status').value, 'picked_up');
+    assert.equal(wooPuts[0].meta_data.find(m => m.key === '_hmt_shipment_status').value, 'out_for_delivery');
     assert.equal(result.woo.ok, true);
   } finally {
     globalThis.fetch = originalFetch;
