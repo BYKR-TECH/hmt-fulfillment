@@ -22,14 +22,33 @@ export function mapWixOrderToFedexShipment(order, config, options = {}) {
       country: delivery.address?.country
     }
   }, config, {
-    orderNumber: options.orderNumberOverride || order?.number || order?.id || ''
+    orderNumber: options.orderNumberOverride || order?.number || order?.id || '',
+    exportClearance: options.exportClearance,
+    invoiceNumber: options.invoiceNumber,
+    departmentNumber: options.departmentNumber
   });
 }
 
 export async function createFedexShipment(payload, config) {
+  return requestFedexShip('/ship/v1/shipments', {
+    accountNumber: payload.accountNumber,
+    requestedShipment: payload.requestedShipment,
+    labelResponseOptions: payload.labelResponseOptions
+  }, config);
+}
+
+// This endpoint checks the shipment without creating an AWB or label.
+export async function validateFedexShipment(payload, config) {
+  return requestFedexShip('/ship/v1/shipments/packages/validate', {
+    accountNumber: payload.accountNumber,
+    requestedShipment: payload.requestedShipment
+  }, config);
+}
+
+async function requestFedexShip(path, payload, config) {
   validateFedexShipConfig(config);
   const token = await getFedexShipToken(config);
-  const response = await fetch(`${config.fedex.baseUrl.replace(/\/$/, '')}/ship/v1/shipments`, {
+  const response = await fetch(`${config.fedex.baseUrl.replace(/\/$/, '')}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -41,9 +60,12 @@ export async function createFedexShipment(payload, config) {
 
   const body = await safeJson(response);
   if (!response.ok) {
-    throw new Error(`FedEx Ship API failed (${response.status}): ${JSON.stringify(body)}`);
+    const error = new Error(`FedEx Ship API failed (${response.status}): ${JSON.stringify(body)}`);
+    error.carrierStatus = response.status;
+    error.transactionId = body.transactionId || '';
+    error.carrierErrorCodes = (body.errors || []).map(item => item.code).filter(Boolean);
+    throw error;
   }
-
   return body;
 }
 
@@ -55,6 +77,22 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
   const customsValue = positiveNumber(row.customsValue, 1);
   const commodityQuantity = Math.max(1, Math.trunc(positiveNumber(row.commodityQuantity, 1)));
   const currency = row.currencyType || 'INR';
+  const csb5 = options.exportClearance === 'csb5';
+  const invoiceNumber = String(options.invoiceNumber || '').trim();
+  const departmentNumber = String(options.departmentNumber || '').trim();
+  if (csb5 && (!invoiceNumber || !departmentNumber)) {
+    throw new Error('CSB V booking requires the commercial invoice number and Department Number output from the FedEx CSB5 utility.');
+  }
+  if (csb5 && (row.senderCountry !== 'IN' || !row.recipientCountry || ['IN', 'INDIA'].includes(row.recipientCountry))) {
+    throw new Error('CSB V booking requires an export shipment from India.');
+  }
+  const customerReferences = [
+    ...(options.orderNumber ? [{ customerReferenceType: 'CUSTOMER_REFERENCE', value: String(options.orderNumber) }] : []),
+    ...(csb5 ? [
+      { customerReferenceType: 'INVOICE_NUMBER', value: invoiceNumber },
+      { customerReferenceType: 'DEPARTMENT_NUMBER', value: departmentNumber }
+    ] : [])
+  ];
 
   return {
     labelResponseOptions: 'LABEL',
@@ -131,7 +169,8 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
           }
         ],
         commercialInvoice: {
-          shipmentPurpose: row.purposeOfShipment || 'SOLD'
+          shipmentPurpose: csb5 ? 'SOLD' : row.purposeOfShipment || 'SOLD',
+          ...(csb5 ? { customerReferences: [{ customerReferenceType: 'INVOICE_NUMBER', value: invoiceNumber }] } : {})
         }
       },
       labelSpecification: {
@@ -140,9 +179,7 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
       },
       requestedPackageLineItems: [
         {
-          customerReferences: options.orderNumber
-            ? [{ customerReferenceType: 'CUSTOMER_REFERENCE', value: String(options.orderNumber) }]
-            : undefined,
+          customerReferences: customerReferences.length ? customerReferences : undefined,
           weight: {
             units: fedexWeightUnits(row.weightUnits),
             value: packageWeight

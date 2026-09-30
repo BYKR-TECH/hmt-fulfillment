@@ -3,16 +3,24 @@
 import { useState } from 'react';
 import { BOOKING_COURIERS, COURIERS } from '@/lib/crm/constants';
 
+const PICKUP_LOCATIONS = [
+  { value: 'HSR GDP', label: 'HSR' },
+  { value: 'Sis Vars', label: 'CV Raman' }
+];
+
 export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pickupLocation = '' }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [labelBusy, setLabelBusy] = useState(false);
   const [rateBusy, setRateBusy] = useState(false);
+  const [validationBusy, setValidationBusy] = useState(false);
   const [fedexRate, setFedexRate] = useState(null);
+  const [shiprocketQuotes, setShiprocketQuotes] = useState([]);
+  const [shiprocketCourierId, setShiprocketCourierId] = useState('');
   const [courier, setCourier] = useState(order.courier || defaultCourierForOrder(order));
   const [shipmentType, setShipmentType] = useState('original');
   const [replacementPart, setReplacementPart] = useState('');
-  const [selectedPickupLocation, setSelectedPickupLocation] = useState(pickupLocation || 'Sis Vars');
+  const [selectedPickupLocation, setSelectedPickupLocation] = useState(normalizePickupLocation(pickupLocation));
   const [labelUrl, setLabelUrl] = useState(order.label_url || '');
   const [awbNumber, setAwbNumber] = useState(order.awb_number || '');
   const [deliveryDetails, setDeliveryDetails] = useState({
@@ -26,6 +34,9 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const canGenerateLabel = Boolean(labelUrl || awbNumber);
   const hasExistingShipment = Boolean(shipments.length || order.awb_number || order.shipment_status === 'shipment_booked');
   const wixShipmentAvailable = Boolean(order.wix_fulfillment_id || order.awb_number || order.tracking_url);
+  const selectedShiprocketQuote = shiprocketQuotes.find(quote => String(quote.courierId) === shiprocketCourierId);
+  const cheapestShiprocketRate = Math.min(...shiprocketQuotes.map(quote => Number(quote.rate)).filter(Number.isFinite));
+  const fastestShiprocketDays = Math.min(...shiprocketQuotes.map(quote => estimateDays(quote.estimatedDeliveryDays)).filter(Number.isFinite));
 
   async function submit(event) {
     event.preventDefault();
@@ -43,7 +54,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       body.allow_multiple_shipments = 'true';
     }
     if (shipmentType !== 'original') body.allow_multiple_shipments = 'true';
-    if (['reverse', 'rto'].includes(shipmentType)) body.service_code = 'reverse_pickup';
+    if (['reverse', 'rto'].includes(shipmentType)) body.service_code = courier === 'shiprocket' ? 'shiprocket_return' : 'reverse_pickup';
     setBusy(true);
     try {
       const response = await fetch(`/api/crm/orders/${order.id}/shipment`, {
@@ -121,6 +132,29 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     window.location.href = `/api/crm/orders/${order.id}/fedex-template?${params.toString()}`;
   }
 
+  async function validateFedexDetails(event) {
+    event.preventDefault();
+    setMessage('');
+    const body = Object.fromEntries(new FormData(event.currentTarget.form).entries());
+    setValidationBusy(true);
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/fedex-validate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        setMessage(`${(data.validation || [data.error || 'FedEx validation failed.']).join(', ')}${data.transaction_id ? ` Transaction: ${data.transaction_id}` : ''}`);
+        return;
+      }
+      const alerts = (data.alerts || []).map(alert => alert.message || alert.code).filter(Boolean);
+      setMessage(`FedEx checked the shipment details. No AWB was created.${alerts.length ? ` ${alerts.join('; ')}` : ''} CSB V clearance still requires FedEx confirmation.`);
+    } catch {
+      setMessage('FedEx validation could not be completed. Please try again.');
+    } finally {
+      setValidationBusy(false);
+    }
+  }
+
   async function getFedexEstimate(event) {
     event.preventDefault();
     setMessage('');
@@ -142,6 +176,37 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     const quote = data.quotes?.[0] || null;
     setFedexRate(quote);
     setMessage(quote ? 'FedEx estimate loaded.' : 'FedEx returned no rate quotes for this shipment.');
+  }
+
+  async function getShiprocketEstimates(event) {
+    event.preventDefault();
+    setMessage('');
+    setShiprocketQuotes([]);
+    setShiprocketCourierId('');
+    const form = new FormData(event.currentTarget.form);
+    const body = Object.fromEntries(form.entries());
+    body.courier = 'shiprocket';
+    setRateBusy(true);
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/shipping-estimate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        setMessage(data.error || 'Shiprocket estimates failed.');
+        return;
+      }
+      const quotes = data.quotes || [];
+      setShiprocketQuotes(quotes);
+      if (quotes[0]?.courierId != null) setShiprocketCourierId(String(quotes[0].courierId));
+      setMessage(quotes.length ? `${quotes.length} Shiprocket ${quotes[0]?.international ? 'international' : 'domestic'} courier option${quotes.length === 1 ? '' : 's'} found.` : 'No Shiprocket courier is available for this route.');
+    } catch {
+      setMessage('Shiprocket estimates could not be loaded. Please try again.');
+    } finally {
+      setRateBusy(false);
+    }
   }
 
   return (
@@ -177,6 +242,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         </>
       )}
       <input type="hidden" name="country" value={order.country || 'IN'} />
+      <input type="hidden" name="shiprocket_courier_id" value={shiprocketCourierId} />
       <div className="shipmentSource full">
         <div>
           <strong>{wixShipmentAvailable ? 'Wix shipment data found' : 'No Wix shipment found'}</strong>
@@ -209,11 +275,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       <label>
         <span>Pickup location</span>
         <select name="pickup_location" value={selectedPickupLocation} onChange={event => setSelectedPickupLocation(event.target.value)}>
-          {!['Sis Vars', 'HSR GDP', 'Hold My Throttle HQ', 'Sai Preetham'].includes(selectedPickupLocation) ? <option value={selectedPickupLocation}>{selectedPickupLocation}</option> : null}
-          <option value="Sis Vars">Sis Vars</option>
-          <option value="HSR GDP">HSR GDP</option>
-          <option value="Hold My Throttle HQ">Hold My Throttle HQ</option>
-          <option value="Sai Preetham">Sai Preetham</option>
+          {PICKUP_LOCATIONS.map(location => <option value={location.value} key={location.value}>{location.label}</option>)}
         </select>
       </label>
       <label>
@@ -226,12 +288,23 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       </label>
       <label>
         <span>Service</span>
-        <select name="service_code" value={['reverse', 'rto'].includes(shipmentType) ? 'reverse_pickup' : undefined} defaultValue={services[0]?.code || 'manual'} disabled={!services.length || ['reverse', 'rto'].includes(shipmentType)}>
+        <select name="service_code" value={['reverse', 'rto'].includes(shipmentType) ? (courier === 'shiprocket' ? 'shiprocket_return' : 'reverse_pickup') : undefined} defaultValue={services[0]?.code || 'manual'} disabled={!services.length || ['reverse', 'rto'].includes(shipmentType)}>
           {services.length ? services.map(service => (
             <option value={service.code} key={service.code}>{service.name}</option>
           )) : <option value="manual">Manual / not configured</option>}
         </select>
       </label>
+      {courier === 'fedex' ? (
+        <>
+          <input type="hidden" name="export_clearance" value="csb5" />
+          <div className="shipmentSource full"><div>
+            <strong>CSB V commercial export</strong>
+            <p className="muted">Enter the commercial invoice number and paste the Department Number generated by FedEx’s CSB5 utility. Carrier clearance and label approval are pending confirmation from FedEx.</p>
+          </div></div>
+          <label><span>Commercial invoice number</span><input name="invoice_number" defaultValue={order.invoice_number || ''} /></label>
+          <label className="full"><span>FedEx CSB5 Department Number</span><textarea name="department_number" rows={2} placeholder="Paste the exact output from the FedEx utility" /></label>
+        </>
+      ) : null}
       <label>
         <span>Package weight (grams)</span>
         <input name="weight_grams" type="number" min="1" step="1" defaultValue={packageDefaults.weightGrams || 400} />
@@ -290,6 +363,9 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         {labelUrl ? <a className="button secondary" href={labelUrl} target="_blank" rel="noreferrer">Download label</a> : null}
         {courier === 'fedex' ? (
           <>
+            <button type="button" className="secondary" onClick={validateFedexDetails} disabled={validationBusy || busy}>
+              {validationBusy ? 'Validating FedEx…' : 'Validate FedEx details'}
+            </button>
             <button type="button" className="secondary" onClick={getFedexEstimate} disabled={rateBusy}>
               {rateBusy ? 'Checking FedEx...' : 'Get FedEx estimate'}
             </button>
@@ -297,6 +373,11 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
               Generate FedEx Excel
             </button>
           </>
+        ) : null}
+        {courier === 'shiprocket' ? (
+          <button type="button" className="secondary" onClick={getShiprocketEstimates} disabled={rateBusy}>
+            {rateBusy ? 'Checking Shiprocket…' : 'Get Shiprocket estimates'}
+          </button>
         ) : null}
         {message ? <span className="muted">{message}</span> : null}
       </div>
@@ -310,6 +391,58 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
           </div>
         </div>
       ) : null}
+      {courier === 'shiprocket' && shiprocketQuotes.length ? (
+        <section className="shiprocketResults full" aria-label="Shiprocket courier estimates">
+          <div className="shiprocketResultsHeader">
+            <div>
+              <span className="shiprocketEyebrow">{shiprocketQuotes.length} live estimates</span>
+              <h4>Choose a {shiprocketQuotes[0]?.international ? 'international' : 'domestic'} courier</h4>
+              <p className="muted">Prices and delivery dates are supplied by Shiprocket for this package.</p>
+            </div>
+            {selectedShiprocketQuote ? (
+              <div className="shiprocketSelectionSummary">
+                <span>Selected</span>
+                <strong>{selectedShiprocketQuote.courierName}</strong>
+                <b>{formatMoney(selectedShiprocketQuote.rate, selectedShiprocketQuote.currency)}</b>
+              </div>
+            ) : null}
+          </div>
+            <div className="shiprocketQuoteList">
+              {shiprocketQuotes.map(quote => {
+                const selected = shiprocketCourierId === String(quote.courierId);
+                const isCheapest = Number(quote.rate) === cheapestShiprocketRate;
+                const isFastest = estimateDays(quote.estimatedDeliveryDays) === fastestShiprocketDays;
+                return (
+                <label className={`shiprocketQuote${selected ? ' selected' : ''}`} key={quote.courierId}>
+                  <input type="radio" name="shiprocket_quote" checked={shiprocketCourierId === String(quote.courierId)} onChange={() => setShiprocketCourierId(String(quote.courierId))} />
+                  <span className="shiprocketQuoteBody">
+                    <span className="shiprocketQuoteTopline">
+                      <strong>{quote.courierName}</strong>
+                      <b className="shiprocketPrice">{formatMoney(quote.rate, quote.currency)}</b>
+                    </span>
+                    <span className="shiprocketBadges">
+                      {quote.recommended ? <em className="quoteBadge recommended">Recommended</em> : null}
+                      {isCheapest ? <em className="quoteBadge cheapest">Lowest price</em> : null}
+                      {isFastest ? <em className="quoteBadge fastest">Fastest</em> : null}
+                    </span>
+                    <span className="shiprocketQuoteMeta">
+                      <span><small>Delivery</small><strong>{quote.estimatedDeliveryDate || (quote.estimatedDeliveryDays ? `${quote.estimatedDeliveryDays} days` : 'Not available')}</strong></span>
+                      <span><small>Mode</small><strong>{quote.mode || 'Standard'}</strong></span>
+                      <span><small>Rating</small><strong>{quote.rating != null ? `${quote.rating} / 5` : '—'}</strong></span>
+                    </span>
+                  </span>
+                </label>
+              );})}
+            </div>
+            <div className="shiprocketResultActions">
+              <button type="submit" name="booking_action" value="book_courier" disabled={busy || !shiprocketCourierId}>
+                {busy ? 'Booking shipment…' : `Book with ${selectedShiprocketQuote?.courierName || 'selected courier'}`}
+              </button>
+              <button type="button" className="secondary" onClick={getShiprocketEstimates} disabled={rateBusy}>Refresh estimates</button>
+              <small className="muted">Final charges may change if the courier measures a different package weight.</small>
+            </div>
+        </section>
+      ) : null}
     </form>
   );
 }
@@ -317,4 +450,25 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
 function defaultCourierForOrder(order = {}) {
   const country = String(order.shipping_country || order.country || 'IN').trim().toUpperCase();
   return country && country !== 'IN' && country !== 'INDIA' ? 'fedex' : 'delhivery';
+}
+
+function normalizePickupLocation(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['hsr', 'hsr gdp'].includes(normalized)) return 'HSR GDP';
+  return 'Sis Vars';
+}
+
+function estimateDays(value) {
+  const days = String(value || '').match(/\d+/g)?.map(Number).filter(Number.isFinite) || [];
+  return days.length ? Math.max(...days) : Number.POSITIVE_INFINITY;
+}
+
+function formatMoney(value, currency = 'INR') {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 'Price unavailable';
+  try {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR', maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${currency || 'INR'} ${amount.toFixed(2)}`;
+  }
 }

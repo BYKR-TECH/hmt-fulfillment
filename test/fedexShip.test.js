@@ -99,3 +99,90 @@ test('uses the CRM shipping override for the FedEx recipient', () => {
   assert.equal(payload.requestedShipment.recipients[0].address.streetLines[0], '10 Shipping Street');
   assert.equal(payload.requestedShipment.recipients[0].address.postalCode, '20001');
 });
+
+test('CSB V sends the invoice and exact utility output with commercial purpose', () => {
+  const payload = buildFedexShipmentPayload({
+    shipping_address: { country: 'DE' },
+    fedex_payload: { purposeOfShipment: 'GIFT', declaredValue: 2500, weightGrams: 650, lengthCm: 25 }
+  }, { fedex: { accountNumber: '123' }, defaults: {} }, {
+    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output', orderNumber: '100'
+  });
+  const shipment = payload.requestedShipment;
+  assert.equal(shipment.customsClearanceDetail.commercialInvoice.shipmentPurpose, 'SOLD');
+  assert.deepEqual(shipment.requestedPackageLineItems[0].customerReferences, [
+    { customerReferenceType: 'CUSTOMER_REFERENCE', value: '100' },
+    { customerReferenceType: 'INVOICE_NUMBER', value: 'INV-100' },
+    { customerReferenceType: 'DEPARTMENT_NUMBER', value: 'utility-output' }
+  ]);
+  assert.equal(shipment.customsClearanceDetail.commodities[0].customsValue.amount, 2500);
+  assert.equal(shipment.requestedPackageLineItems[0].weight.value, 0.65);
+  assert.equal(shipment.requestedPackageLineItems[0].dimensions.length, 25);
+});
+
+test('CSB V cannot create a payload without its mandatory references or an export destination', () => {
+  const config = { fedex: { accountNumber: '123' }, defaults: {} };
+  assert.throws(() => buildFedexShipmentPayload({}, config, { exportClearance: 'csb5' }), /invoice number/);
+  assert.throws(() => buildFedexShipmentPayload({ shipping_address: { country: 'IN' } }, config, {
+    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output'
+  }), /export shipment from India/);
+});
+
+test('Wix booking forwards CSB V references and operator customs values', () => {
+  const payload = mapWixOrderToFedexShipment({ number: '100' }, { fedex: { accountNumber: '123' }, defaults: {} }, {
+    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output',
+    fedexPayload: { declaredValue: 2500 }, deliveryOverride: { address: { country: 'US' } }
+  });
+  assert.equal(payload.requestedShipment.requestedPackageLineItems[0].customerReferences[1].value, 'INV-100');
+  assert.equal(payload.requestedShipment.customsClearanceDetail.commodities[0].customsValue.amount, 2500);
+});
+
+
+test('FedEx validation uses the non-booking endpoint and does not send label response options', async t => {
+  const { validateFedexShipment } = await import('../src/fedexShip.js?validation-success');
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    requests.push({ url, options });
+    return new Response(JSON.stringify(url.endsWith('/oauth/token')
+      ? { access_token: 'test-token', expires_in: 3600 }
+      : { transactionId: 'validation-123', output: { alerts: [] } }), { status: 200 });
+  });
+  const config = { fedex: { baseUrl: 'https://apis-sandbox.fedex.com', clientId: 'test-id', clientSecret: 'test-secret', accountNumber: '123' } };
+  const payload = { accountNumber: { value: '123' }, requestedShipment: { serviceType: 'FEDEX_INTERNATIONAL_PRIORITY' }, labelResponseOptions: 'LABEL', flow: 'international' };
+  const result = await validateFedexShipment(payload, config);
+  assert.equal(result.transactionId, 'validation-123');
+  assert.deepEqual(requests.map(item => item.url), [
+    'https://apis-sandbox.fedex.com/oauth/token',
+    'https://apis-sandbox.fedex.com/ship/v1/shipments/packages/validate'
+  ]);
+  assert.deepEqual(JSON.parse(requests[1].options.body), { accountNumber: payload.accountNumber, requestedShipment: payload.requestedShipment });
+});
+
+test('FedEx validation preserves the access failure and transaction for carrier troubleshooting', async t => {
+  const { validateFedexShipment } = await import('../src/fedexShip.js?validation-forbidden');
+  t.mock.method(globalThis, 'fetch', async url => new Response(JSON.stringify(url.endsWith('/oauth/token')
+    ? { access_token: 'test-token', expires_in: 3600 }
+    : { transactionId: 'denied-123', errors: [{ code: 'FORBIDDEN.ERROR', message: 'Forbidden' }] }), { status: url.endsWith('/oauth/token') ? 200 : 403 }));
+  await assert.rejects(validateFedexShipment({ accountNumber: { value: '123' }, requestedShipment: {} }, {
+    fedex: { baseUrl: 'https://apis.fedex.com', clientId: 'test-id', clientSecret: 'test-secret', accountNumber: '123' }
+  }), error => {
+    assert.equal(error.carrierStatus, 403);
+    assert.equal(error.transactionId, 'denied-123');
+    assert.deepEqual(error.carrierErrorCodes, ['FORBIDDEN.ERROR']);
+    return true;
+  });
+});
+
+
+test('FedEx create sends carrier fields and excludes internal routing metadata', async t => {
+  const { createFedexShipment } = await import('../src/fedexShip.js?create-routing-fields');
+  let shipmentBody;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/oauth/token')) return new Response(JSON.stringify({ access_token: 'test-token' }));
+    assert.equal(url, 'https://apis-sandbox.fedex.com/ship/v1/shipments');
+    shipmentBody = JSON.parse(options.body);
+    return new Response(JSON.stringify({ output: { transactionShipments: [{ masterTrackingNumber: 'test-awb' }] } }));
+  });
+  const payload = { accountNumber: { value: '123' }, requestedShipment: {}, labelResponseOptions: 'LABEL', flow: 'international', provider: 'fedex' };
+  await createFedexShipment(payload, { fedex: { baseUrl: 'https://apis-sandbox.fedex.com', clientId: 'test-id', clientSecret: 'test-secret', accountNumber: '123' } });
+  assert.deepEqual(shipmentBody, { accountNumber: payload.accountNumber, requestedShipment: payload.requestedShipment, labelResponseOptions: 'LABEL' });
+});

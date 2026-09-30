@@ -20,7 +20,13 @@ export async function bookWixOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    fedexPayload: metadata.fedexPayload,
+    exportClearance: metadata.exportClearance,
+    invoiceNumber: metadata.invoiceNumber,
+    departmentNumber: metadata.departmentNumber,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -117,6 +123,8 @@ function normalizeShippingMode(value) {
 function extractWaybill(response) {
   return (
     response?.waybill ||
+    response?.awb_code ||
+    response?.response?.data?.awb_code ||
     response?.output?.transactionShipments?.[0]?.masterTrackingNumber ||
     response?.output?.transactionShipments?.[0]?.pieceResponses?.[0]?.trackingNumber ||
     response?.packages?.[0]?.waybill ||
@@ -154,7 +162,13 @@ export async function bookAmazonOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    fedexPayload: metadata.fedexPayload,
+    exportClearance: metadata.exportClearance,
+    invoiceNumber: metadata.invoiceNumber,
+    departmentNumber: metadata.departmentNumber,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -237,7 +251,11 @@ export async function bookWooCommerceOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    fedexPayload: metadata.fedexPayload,
+    exportClearance: metadata.exportClearance,
+    invoiceNumber: metadata.invoiceNumber,
+    departmentNumber: metadata.departmentNumber
   });
   const pending = await upsertShipment({
     ...metadata,
