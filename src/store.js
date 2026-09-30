@@ -1031,6 +1031,9 @@ function buildWooCrmStatusPatch(existingOrder, sourceOrder) {
   if (sourceOrder.status === 'canceled' || sourceOrder.status === 'cancelled') {
     return { internal_status: 'cancelled' };
   }
+  if (sourceOrder.fulfillment_status === 'fulfilled') {
+    return { internal_status: 'fulfilled' };
+  }
   if (sourceOrder.payment_status === 'paid') {
     return { internal_status: 'awaiting_packing' };
   }

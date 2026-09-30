@@ -493,6 +493,7 @@ function mapWooStatus(status) {
 
 function mapWooFulfillmentStatus(status) {
   switch (String(status || '').toLowerCase()) {
+    case 'shipped':
     case 'completed':
       return 'fulfilled';
     case 'cancelled':

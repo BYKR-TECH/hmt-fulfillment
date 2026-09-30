@@ -1,9 +1,10 @@
 /**
- * Ops → WooCommerce shipment write-back (meta-only).
+ * Ops → WooCommerce shipment tracking and status write-back.
  * Mirrors Wix channel sync call sites for Woo-sourced orders.
- * Never sends customer email/WhatsApp; never changes WC order status.
+ * Booking stays meta-only; pickup/delivery can advance WC order status.
  */
 import { buildTrackingUrl } from './wixFulfillment.js';
+import { reconcileWooOrderStatus } from './wooOrderStatusSync.js';
 import {
   buildHmtShipmentMetaData,
   normalizeCarrierSlug,
@@ -68,11 +69,13 @@ export async function syncShipmentTrackingToWoo(order, shipment, config, options
     const response = await updateWooCommerceOrderShipmentMeta(wooOrderId, meta, config, {
       fetchImpl: options.fetchImpl
     });
+    const orderStatus = shipmentStatus === 'booked' ? null : await reconcileWooOrderStatus(order, config, options);
     return {
       ok: true,
       woo_order_id: wooOrderId,
       shipment_status: shipmentStatus,
       meta_data: meta,
+      order_status_sync: orderStatus,
       response
     };
   } catch (error) {
@@ -88,5 +91,7 @@ export async function writeWooShipmentOnBooked(order, shipment, config, options 
 }
 
 export async function writeWooShipmentOnPickedUp(order, shipment, config, options = {}) {
-  return syncShipmentTrackingToWoo(order, shipment, config, { ...options, shipmentStatus: 'picked_up' });
+  const actualStatus = normalizeShipmentStatus(shipment?.status);
+  const shipmentStatus = ['picked_up', 'dispatched', 'in_transit', 'out_for_delivery', 'delivered'].includes(actualStatus) ? actualStatus : 'picked_up';
+  return syncShipmentTrackingToWoo(order, shipment, config, { ...options, shipmentStatus });
 }
