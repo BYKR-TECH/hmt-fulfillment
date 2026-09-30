@@ -48,7 +48,12 @@ test('normalizes settings form payload into typed settings', () => {
     whatsapp_inbox_id: '1',
     whatsapp_order_template_name: 'order_management_no_cta_5',
     whatsapp_order_template_language: 'en_US',
-    whatsapp_order_template_category: 'utility'
+    whatsapp_order_template_category: 'utility',
+    whatsapp_shipment_confirmation_enabled: 'on',
+    whatsapp_shipment_template_name: 'shipment_confirmation_3',
+    whatsapp_shipment_template_language: 'en_US',
+    whatsapp_shipment_template_category: 'utility',
+    whatsapp_shipment_tracking_button_url: 'https://track.holdmythrottle.com/{{1}}'
   });
 
   assert.equal(settings.shipment_defaults.domestic.weightGrams, 400);
@@ -61,6 +66,10 @@ test('normalizes settings form payload into typed settings', () => {
   assert.equal(settings.automation_defaults.whatsappOrderConfirmationEnabledAt, '2026-09-21T10:30:00.000Z');
   assert.equal(settings.automation_defaults.whatsappOrderTemplateName, 'order_management_no_cta_5');
   assert.equal(settings.automation_defaults.whatsappOrderTemplateCategory, 'UTILITY');
+  assert.equal(settings.automation_defaults.whatsappShipmentConfirmationEnabled, true);
+  assert.equal(settings.automation_defaults.whatsappShipmentTemplateName, 'shipment_confirmation_3');
+  assert.equal(settings.automation_defaults.whatsappShipmentTemplateCategory, 'UTILITY');
+  assert.equal(settings.automation_defaults.whatsappShipmentTrackingButtonUrl, 'https://track.holdmythrottle.com/{{1}}');
 });
 
 test('applies CRM settings onto runtime courier config without replacing secrets', () => {
@@ -134,4 +143,32 @@ test('uses environment-backed WhatsApp confirmation settings when CRM settings a
   assert.equal(updated.chatwoot.orderConfirmationEnabled, true);
   assert.equal(updated.chatwoot.orderConfirmationEnabledAt, '2026-09-21T10:00:00.000Z');
   assert.equal(updated.chatwoot.orderTemplateName, 'order_management_no_cta_5');
+});
+
+test('applies saved WhatsApp shipment confirmation settings over environment defaults', () => {
+  const config = {
+    wix: {},
+    delhivery: {},
+    defaults: {},
+    chatwoot: {
+      shipmentConfirmationEnabled: false,
+      shipmentTemplateName: 'env_template',
+      shipmentTemplateLanguage: 'en',
+      shipmentTemplateCategory: 'MARKETING',
+      shipmentTrackingButtonUrl: 'https://example.com/{{1}}'
+    }
+  };
+  const settings = mergeCrmSettings([{ key: 'automation_defaults', value: {
+    whatsappShipmentConfirmationEnabled: true,
+    whatsappShipmentTemplateName: 'shipment_confirmation_3',
+    whatsappShipmentTemplateLanguage: 'en_US',
+    whatsappShipmentTemplateCategory: 'UTILITY',
+    whatsappShipmentTrackingButtonUrl: 'https://track.holdmythrottle.com/{{1}}'
+  } }]);
+  const updated = applyCrmSettingsToConfig(config, settings);
+  assert.equal(updated.chatwoot.shipmentConfirmationEnabled, true);
+  assert.equal(updated.chatwoot.shipmentTemplateName, 'shipment_confirmation_3');
+  assert.equal(updated.chatwoot.shipmentTemplateLanguage, 'en_US');
+  assert.equal(updated.chatwoot.shipmentTemplateCategory, 'UTILITY');
+  assert.equal(updated.chatwoot.shipmentTrackingButtonUrl, 'https://track.holdmythrottle.com/{{1}}');
 });
