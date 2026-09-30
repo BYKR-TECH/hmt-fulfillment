@@ -237,8 +237,8 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         <input name="weight_grams" type="number" min="1" step="1" defaultValue={packageDefaults.weightGrams || 400} />
       </label>
       <label>
-        <span>Product value</span>
-        <input name="product_value" type="number" defaultValue={order.order_value || ''} />
+        <span>Product value ({order.currency || 'INR'})</span>
+        <input name="product_value" type="number" step="0.01" defaultValue={order.order_value || ''} />
       </label>
       <label>
         <span>Length (cm)</span>
