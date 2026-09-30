@@ -167,14 +167,14 @@ test('sends the approved pickup template with tracking button parameters', async
   };
   const result = await sendChatwootShipmentConfirmation({
     id: 'order-id', order_number: '#12345', customers: { name: 'John', phone: '9876543210' }
-  }, { waybill: '52270010001890' }, {
+  }, { waybill: '5227 0010 001890' }, {
     inboxId: '1', fetchImpl,
     env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
   assert.equal(result.providerMessageId, '19701');
   const message = requests.find(request => request.url.pathname.endsWith('/conversations/1303/messages'));
   const body = JSON.parse(message.options.body);
-  assert.deepEqual(body.template_params.processed_params.body, { 1: 'John', 2: '#12345', 3: '52270010001890' });
+  assert.deepEqual(body.template_params.processed_params.body, { 1: 'John', 2: '#12345', 3: '5227 0010 001890' });
   assert.deepEqual(body.template_params.processed_params.buttons, [{ type: 'url', parameter: '52270010001890', url: 'https://track.holdmythrottle.com/{{1}}', variables: ['1'] }]);
 });
 

@@ -2,6 +2,7 @@
 
 - Start changes on a `codex/` branch based on current `main`.
 - Open a pull request and pass the `Validate` check before merging to `main`.
+- Give every PR a clear title and a description of what changed; the website Changelog displays merged PR titles and descriptions automatically.
 - Production on `saipi` automatically deploys validated commits from `main`; never deploy uncommitted files or edit active release source.
 - Keep secrets, customer exports, generated artifacts, and scratch files out of Git.
 - Use Node 24. Run `npm test` and `npm run build` for release changes.
