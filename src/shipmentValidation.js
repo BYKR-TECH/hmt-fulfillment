@@ -10,6 +10,7 @@ export function validateShipmentPayload(payload, { manualAwb = false } = {}) {
     if (['reverse', 'rto'].includes(payload.shipment_type)) missing.push('CSB V requires an outbound shipment');
     if (payload.payment_mode === 'COD') missing.push('CSB V booking requires prepaid payment');
     if (!String(payload.invoice_number || '').trim()) missing.push('CSB V requires a commercial invoice number');
+    if (!/^[0-9]+$/.test(String(payload.ad_code || '').trim())) missing.push('CSB V requires the exporter bank AD Code (digits only)');
     if (!String(payload.department_number || '').trim()) missing.push('CSB V requires the Department Number output from the FedEx utility');
   }
   if (!payload.phone) missing.push('Missing phone number');

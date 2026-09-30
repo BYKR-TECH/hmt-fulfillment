@@ -105,10 +105,20 @@ test('CSB V sends the invoice and exact utility output with commercial purpose',
     shipping_address: { country: 'DE' },
     fedex_payload: { purposeOfShipment: 'GIFT', declaredValue: 2500, weightGrams: 650, lengthCm: 25 }
   }, { fedex: { accountNumber: '123' }, defaults: {} }, {
-    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output', orderNumber: '100'
+    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output', adCode: '7654321', orderNumber: '100'
   });
   const shipment = payload.requestedShipment;
   assert.equal(shipment.customsClearanceDetail.commercialInvoice.shipmentPurpose, 'SOLD');
+  assert.deepEqual(shipment.customsClearanceDetail.commercialInvoice.customerReferences, [
+    { customerReferenceType: 'INVOICE_NUMBER', value: 'INV-100' },
+    { customerReferenceType: 'DEPARTMENT_NUMBER', value: 'utility-output' }
+  ]);
+  assert.deepEqual(shipment.customsClearanceDetail.commercialInvoice.comments, ['DEPT_NOTES: utility-output, AD Code: 7654321, INV: INV-100']);
+  assert.ok(shipment.customsClearanceDetail.commercialInvoice.originatorName);
+  assert.deepEqual(shipment.customsClearanceDetail.customsOption, { type: 'OTHER', description: 'utility-output' });
+  assert.deepEqual(shipment.customsClearanceDetail.totalCustomsValue, { amount: 2500, currency: 'INR' });
+  assert.deepEqual(shipment.shippingDocumentSpecification.shippingDocumentTypes, ['COMMERCIAL_INVOICE']);
+  assert.equal(shipment.shippingDocumentSpecification.commercialInvoiceDetail.documentFormat.docType, 'PDF');
   assert.deepEqual(shipment.requestedPackageLineItems[0].customerReferences, [
     { customerReferenceType: 'CUSTOMER_REFERENCE', value: '100' },
     { customerReferenceType: 'INVOICE_NUMBER', value: 'INV-100' },
@@ -123,13 +133,13 @@ test('CSB V cannot create a payload without its mandatory references or an expor
   const config = { fedex: { accountNumber: '123' }, defaults: {} };
   assert.throws(() => buildFedexShipmentPayload({}, config, { exportClearance: 'csb5' }), /invoice number/);
   assert.throws(() => buildFedexShipmentPayload({ shipping_address: { country: 'IN' } }, config, {
-    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output'
+    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output', adCode: '7654321'
   }), /export shipment from India/);
 });
 
 test('Wix booking forwards CSB V references and operator customs values', () => {
   const payload = mapWixOrderToFedexShipment({ number: '100' }, { fedex: { accountNumber: '123' }, defaults: {} }, {
-    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output',
+    exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output', adCode: '7654321',
     fedexPayload: { declaredValue: 2500 }, deliveryOverride: { address: { country: 'US' } }
   });
   assert.equal(payload.requestedShipment.requestedPackageLineItems[0].customerReferences[1].value, 'INV-100');
@@ -185,4 +195,51 @@ test('FedEx create sends carrier fields and excludes internal routing metadata',
   const payload = { accountNumber: { value: '123' }, requestedShipment: {}, labelResponseOptions: 'LABEL', flow: 'international', provider: 'fedex' };
   await createFedexShipment(payload, { fedex: { baseUrl: 'https://apis-sandbox.fedex.com', clientId: 'test-id', clientSecret: 'test-secret', accountNumber: '123' } });
   assert.deepEqual(shipmentBody, { accountNumber: payload.accountNumber, requestedShipment: payload.requestedShipment, labelResponseOptions: 'LABEL' });
+});
+
+
+test('CSB V rejects a missing or placeholder bank AD Code', () => {
+  const config = { fedex: { accountNumber: '123' }, defaults: {} };
+  const order = { shipping_address: { country: 'US' } };
+  const options = { exportClearance: 'csb5', invoiceNumber: 'INV-100', departmentNumber: 'utility-output' };
+  for (const adCode of ['', 'bank-code']) {
+    assert.throws(() => buildFedexShipmentPayload(order, config, { ...options, adCode }), /bank AD Code/);
+  }
+});
+
+test('invoice-first carrier documents cannot be mistaken for a shipping label', () => {
+  const parsed = parseFedexShipmentResponse({ output: { transactionShipments: [{
+    shipmentDocuments: [{ docType: 'COMMERCIAL_INVOICE', encodedLabel: 'invoice-pdf' }, { docType: 'LABEL', contentType: 'PDF', encodedLabel: 'label-pdf' }]
+  }] } });
+  assert.equal(parsed.labelBase64, 'label-pdf');
+  assert.equal(parsed.invoiceDocuments[0].encodedLabel, 'invoice-pdf');
+  assert.equal(parseFedexShipmentResponse({ output: { transactionShipments: [{ shipmentDocuments: [{ docType: 'COMMERCIAL_INVOICE', encodedLabel: 'invoice-only' }] }] } }).labelBase64, '');
+});
+
+test('FedEx sandbox configuration cannot fall back to production credentials or host', async () => {
+  const { fedexSandboxConfig } = await import('../src/fedexShip.js');
+  const production = { fedex: { baseUrl: 'https://apis.fedex.com', clientId: 'production-id', clientSecret: 'production-secret', accountNumber: 'production-account' } };
+  assert.throws(() => fedexSandboxConfig(production), /SANDBOX_CLIENT_ID/);
+  const sandbox = fedexSandboxConfig({ ...production, fedex: { ...production.fedex, sandbox: { clientId: 'sandbox-id', clientSecret: 'sandbox-secret', accountNumber: 'sandbox-account', baseUrl: 'https://apis.fedex.com' } } });
+  assert.equal(sandbox.fedex.baseUrl, 'https://apis-sandbox.fedex.com');
+  assert.equal(sandbox.fedex.clientId, 'sandbox-id');
+  assert.equal(sandbox.fedex.accountNumber, 'sandbox-account');
+});
+
+test('FedEx sandbox testing never reuses a production OAuth token', async t => {
+  const { validateFedexShipment } = await import('../src/fedexShip.js?isolate-test-tokens');
+  const authorizations = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/oauth/token')) {
+      const id = new URLSearchParams(options.body).get('client_id');
+      return new Response(JSON.stringify({ access_token: `${id}-token`, expires_in: 3600 }));
+    }
+    authorizations.push(options.headers.Authorization);
+    return new Response(JSON.stringify({ transactionId: 'test' }));
+  });
+  const payload = { accountNumber: { value: '123' }, requestedShipment: {} };
+  for (const name of ['production', 'sandbox']) {
+    await validateFedexShipment(payload, { fedex: { baseUrl: name === 'production' ? 'https://apis.fedex.com' : 'https://apis-sandbox.fedex.com', clientId: name, clientSecret: `${name}-secret`, accountNumber: '123' } });
+  }
+  assert.deepEqual(authorizations, ['Bearer production-token', 'Bearer sandbox-token']);
 });

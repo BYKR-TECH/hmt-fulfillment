@@ -1,6 +1,7 @@
 import { buildFedexBatchUploadRow } from './internationalExport.js';
 
 let cachedShipToken = '';
+let shipTokenConfigKey = '';
 let shipTokenExpiresAt = 0;
 
 export function mapWixOrderToFedexShipment(order, config, options = {}) {
@@ -25,7 +26,8 @@ export function mapWixOrderToFedexShipment(order, config, options = {}) {
     orderNumber: options.orderNumberOverride || order?.number || order?.id || '',
     exportClearance: options.exportClearance,
     invoiceNumber: options.invoiceNumber,
-    departmentNumber: options.departmentNumber
+    departmentNumber: options.departmentNumber,
+    adCode: options.adCode
   });
 }
 
@@ -80,8 +82,12 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
   const csb5 = options.exportClearance === 'csb5';
   const invoiceNumber = String(options.invoiceNumber || '').trim();
   const departmentNumber = String(options.departmentNumber || '').trim();
+  const adCode = String(options.adCode || config.fedex.adCode || '').trim();
   if (csb5 && (!invoiceNumber || !departmentNumber)) {
     throw new Error('CSB V booking requires the commercial invoice number and Department Number output from the FedEx CSB5 utility.');
+  }
+  if (csb5 && !/^[0-9]+$/.test(adCode)) {
+    throw new Error('CSB V booking requires the exporter bank AD Code (digits only).');
   }
   if (csb5 && (row.senderCountry !== 'IN' || !row.recipientCountry || ['IN', 'INDIA'].includes(row.recipientCountry))) {
     throw new Error('CSB V booking requires an export shipment from India.');
@@ -145,12 +151,18 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
         }
       },
       customsClearanceDetail: {
+        ...(csb5 ? {
+          isDocumentOnly: false,
+          customsOption: { type: 'OTHER', description: departmentNumber },
+          totalCustomsValue: { amount: roundMoney(customsValue), currency }
+        } : {}),
         dutiesPayment: {
           paymentType: 'RECIPIENT'
         },
         commodities: [
           {
             description: row.itemDescription || 'Hold My Throttle',
+            ...(csb5 && config.defaults?.hsnCode ? { harmonizedCode: String(config.defaults.hsnCode) } : {}),
             countryOfManufacture: row.manufacturingCountry || 'IN',
             quantity: commodityQuantity,
             quantityUnits: row.commodityMeasureUnit || 'BOX',
@@ -170,9 +182,24 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
         ],
         commercialInvoice: {
           shipmentPurpose: csb5 ? 'SOLD' : row.purposeOfShipment || 'SOLD',
-          ...(csb5 ? { customerReferences: [{ customerReferenceType: 'INVOICE_NUMBER', value: invoiceNumber }] } : {})
+          ...(csb5 ? {
+            originatorName: row.senderCompany || row.senderContactName,
+            comments: [`DEPT_NOTES: ${departmentNumber}, AD Code: ${adCode}, INV: ${invoiceNumber}`],
+            customerReferences: [
+              { customerReferenceType: 'INVOICE_NUMBER', value: invoiceNumber },
+              { customerReferenceType: 'DEPARTMENT_NUMBER', value: departmentNumber }
+            ]
+          } : {})
         }
       },
+      ...(csb5 ? {
+        shippingDocumentSpecification: {
+          shippingDocumentTypes: ['COMMERCIAL_INVOICE'],
+          commercialInvoiceDetail: { documentFormat: {
+            provideInstructions: true, stockType: 'PAPER_LETTER', locale: 'en_US', docType: 'PDF'
+          } }
+        }
+      } : {}),
       labelSpecification: {
         labelStockType: 'PAPER_4X6',
         imageType: 'PDF'
@@ -199,14 +226,24 @@ export function buildFedexShipmentPayload(order, config, options = {}) {
 export function parseFedexShipmentResponse(body = {}) {
   const shipment = body?.output?.transactionShipments?.[0] || {};
   const piece = shipment.pieceResponses?.[0] || {};
-  const label = piece.packageDocuments?.[0] || shipment.shipmentDocuments?.[0] || {};
+  const documents = [...(piece.packageDocuments || []), ...(shipment.shipmentDocuments || [])];
+  const label = documents.find(document => !String(document.docType || document.type || '').toUpperCase().includes('INVOICE')) || {};
   const labelBase64 = label.encodedLabel || label.parts?.[0]?.image || '';
   return {
     waybill: shipment.masterTrackingNumber || piece.trackingNumber || '',
     labelBase64,
     labelFormat: label.contentType || label.docType || 'PDF',
+    invoiceDocuments: documents.filter(document => String(document.docType || document.type || '').toUpperCase().includes('INVOICE')),
     raw: body
   };
+}
+
+export function fedexSandboxConfig(config) {
+  const sandbox = config.fedex?.sandbox || {};
+  if (!sandbox.clientId || !sandbox.clientSecret || !sandbox.accountNumber) {
+    throw new Error('FedEx testing requires FEDEX_SANDBOX_CLIENT_ID, FEDEX_SANDBOX_CLIENT_SECRET and FEDEX_SANDBOX_ACCOUNT_NUMBER. Configure sandbox credentials separately from production.');
+  }
+  return { ...config, fedex: { ...config.fedex, ...sandbox, baseUrl: 'https://apis-sandbox.fedex.com' } };
 }
 
 function validateFedexShipConfig(config) {
@@ -220,7 +257,8 @@ function validateFedexShipConfig(config) {
 
 async function getFedexShipToken(config) {
   const now = Date.now();
-  if (cachedShipToken && shipTokenExpiresAt > now + 60000) return cachedShipToken;
+  const configKey = JSON.stringify([config.fedex.baseUrl, config.fedex.clientId, config.fedex.clientSecret]);
+  if (cachedShipToken && shipTokenConfigKey === configKey && shipTokenExpiresAt > now + 60000) return cachedShipToken;
 
   const params = new URLSearchParams();
   params.append('grant_type', 'client_credentials');
@@ -238,6 +276,7 @@ async function getFedexShipToken(config) {
     throw new Error(`FedEx auth failed (${response.status}): ${JSON.stringify(body)}`);
   }
 
+  shipTokenConfigKey = configKey;
   cachedShipToken = body.access_token;
   shipTokenExpiresAt = Date.now() + Number(body.expires_in || 3600) * 1000;
   return cachedShipToken;

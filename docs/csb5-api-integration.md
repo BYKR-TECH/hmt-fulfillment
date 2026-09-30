@@ -1,27 +1,37 @@
 # CSB V API booking
 
-## Current implementation
+## FedEx payload confirmed by carrier sample
 
-The FedEx booking form in ops collects a commercial invoice number and the exact Department Number output from FedEx's CSB5 utility. Booking sends these as `INVOICE_NUMBER` and `DEPARTMENT_NUMBER` customer references on the package; the commercial invoice also carries the invoice reference and `shipmentPurpose: SOLD`. Package dimensions, weight and declared customs value come from the operator's form.
+Arun Mohan replied on 30 September 2026 with `CSB Invoice request.txt` and specified the fields needed for a CSB V invoice. The ops form collects the commercial invoice number, the Department Number output from FedEx’s utility, and the exporter’s registered bank AD Code. Never copy placeholder account, AD Code, dates or invoice numbers from the sample.
 
-CSB V requests must be outbound, prepaid exports from India and include both references. Manual AWB entry remains available without these API fields. Booking only records the shipment locally: the operator must select the booked shipment and explicitly fulfill it after pickup to send tracking to Wix.
+The request includes:
 
-This implementation does not generate the Department Number string. Do not substitute a literal `CSB V` marker for the utility output or alter its format. FedEx's utility attachment is an Excel macro workbook; obtain its specification or a worked example before implementing an equivalent generator.
+- `customsClearanceDetail.commercialInvoice.originatorName` from the configured shipper.
+- Invoice `customerReferences` containing both `INVOICE_NUMBER` and `DEPARTMENT_NUMBER`, also retained on the package.
+- Invoice `comments`: `DEPT_NOTES: <department output>, AD Code: <actual AD code>, INV: <actual invoice number>`.
+- Commercial shipment purpose, `isDocumentOnly: false`, a matching `customsOption` of type `OTHER`, total customs value and the configured HS code when available.
+- `shippingDocumentSpecification` requesting a PDF `COMMERCIAL_INVOICE` separately from the PDF shipping label.
 
-The ops form also offers **Validate FedEx details**, which submits the CSB V request to `/ship/v1/shipments/packages/validate` without creating a shipment, AWB, label, or fulfillment. The API route is covered by the existing authenticated orders-edit permission. Validation and booking use saved CRM configuration; validation success does not confirm CSB V customs clearance.
+The same real invoice number is used in every reference and comment; the same utility output is used for department notes, references and customs description. The carrier sample contains inconsistent example dates and invoice numbers and is not copied literally. Shipper, recipient, destination, commercial value and payer choices remain the actual booking values.
 
-## Carrier verification pending
+This implementation does not infer or generate the Department Number string. Paste the exact utility output until FedEx provides the field definitions for an equivalent generator. Booking must not create a Wix fulfillment; fulfillment follows the current pickup lifecycle in AGENTS.md.
 
-FedEx's email on 10 September 2026 requires the utility output in the Department No additional reference and makes the invoice number mandatory. Follow-up sent on 30 September asks Arun Mohan and Jeswin Raphael to confirm the REST mapping, label appearance, clearance selection and production test/certification process. Until those answers and a successful carrier test are available, this change should remain a draft PR.
+## Sandbox approval workflow
 
-Production diagnostic on 30 September 2026: OAuth returned HTTP 200; the non-booking shipment validation endpoint returned HTTP 403 `FORBIDDEN.ERROR`, transaction `aa3a109a-9eaf-48a2-87f1-3912138c5cce`, using dummy recipient data. This evidence was sent to Arun and Jeswin in the existing thread. Account access/endpoint enablement remains unresolved; no AWB was created.
+Arun instructed us to test in the test environment and send him a test label for validation before production.
 
-REST reference documentation: https://developer.fedex.com/api/en-in/catalog/ship/docs.html
+Configure `FEDEX_SANDBOX_CLIENT_ID`, `FEDEX_SANDBOX_CLIENT_SECRET` and `FEDEX_SANDBOX_ACCOUNT_NUMBER` for a FedEx test project. Ops testing is pinned to `https://apis-sandbox.fedex.com`; production credentials cannot be used as a fallback. `FEDEX_AD_CODE` may hold the actual exporter bank AD Code, and the booking form accepts it explicitly per shipment.
 
-Verify with a carrier-approved test shipment: inspect the redacted request, response, AWB and generated label; have FedEx confirm CSB V clearance and mandatory references. Do not share OAuth credentials or unnecessary customer information by email. A successful unit test or build does not establish customs clearance or production account enablement.
+**Validate in FedEx sandbox** submits to `/ship/v1/shipments/packages/validate` without creating an AWB. **Generate sandbox test label** uses the sandbox Ship API and provides downloadable test label/invoice artifacts. It never saves an ops shipment, updates an order, sends tracking, or triggers fulfillment. Both actions require the existing authenticated orders-edit permission. Keep sandbox artifacts separate from production labels and AWBs.
 
-Delhivery's international API documentation and enablement are still pending. Follow-up sent to Avantika on 30 September requests sandbox/production access, CSB V Premium/Saver schemas, seller/KYC requirements, AWB/label retrieval, duplicate prevention and certification. The domestic CMU API must not be used to book international shipments. International Delhivery shipments continue to queue for portal handling until the carrier provides the contract.
+As of the configuration check on 30 September, the three sandbox credentials and the bank AD Code were not configured on saipi. No sandbox test label has been produced or approved. Production OAuth was previously successful, but production shipment validation returned HTTP 403 `FORBIDDEN.ERROR` (transaction `aa3a109a-9eaf-48a2-87f1-3912138c5cce`); FedEx received that diagnostic in the email thread.
+
+Send the actual sandbox-generated test label and commercial invoice to Arun and Jeswin in the existing thread and obtain approval before moving to production. Keep credentials and customer exports out of Git. Use a secure channel for credentials. A passing unit test or build does not establish carrier clearance approval.
+
+## Delhivery
+
+International API documentation and enablement remain pending. Avantika received a follow-up requesting CSB V Premium/Saver schemas, seller/KYC requirements, account access, AWB/label retrieval, duplicate prevention and certification. Do not use domestic CMU to book international shipments; Delhivery international orders still queue for portal handling.
 
 ## Release
 
-Run Node 24, `npm test`, and `npm run build`. Obtain carrier confirmation, complete the approved test, and update this document with the confirmed mapping before merging. The PR must pass Validate; deploy through validated main commits as documented in DEPLOYMENT.md. No database migration is required for this change; references are retained in the existing shipment request payload.
+Keep the PR in draft until FedEx approves the sandbox label/invoice and production access is verified. Use Node 24, run `npm test` and `npm run build`, and pass Validate before merging. Deploy only through validated main commits per DEPLOYMENT.md. No schema migration is required; carrier references/documents are retained in the existing request and response payloads.

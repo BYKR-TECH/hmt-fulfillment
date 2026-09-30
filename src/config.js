@@ -156,6 +156,12 @@ export function getConfig() {
       trackingBatchSize: clamp(Number(process.env.SHIPROCKET_TRACKING_BATCH_SIZE || 10), 1, 25)
     },
     fedex: {
+      adCode: process.env.FEDEX_AD_CODE || '',
+      sandbox: {
+        clientId: process.env.FEDEX_SANDBOX_CLIENT_ID || '',
+        clientSecret: process.env.FEDEX_SANDBOX_CLIENT_SECRET || '',
+        accountNumber: process.env.FEDEX_SANDBOX_ACCOUNT_NUMBER || ''
+      },
       baseUrl: process.env.FEDEX_BASE_URL || 'https://apis.fedex.com',
       clientId: process.env.FEDEX_CLIENT_ID || '',
       clientSecret: process.env.FEDEX_CLIENT_SECRET || '',
