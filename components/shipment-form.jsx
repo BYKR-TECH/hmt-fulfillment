@@ -34,6 +34,9 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const canGenerateLabel = Boolean(labelUrl || awbNumber);
   const hasExistingShipment = Boolean(shipments.length || order.awb_number || order.shipment_status === 'shipment_booked');
   const wixShipmentAvailable = Boolean(order.wix_fulfillment_id || order.awb_number || order.tracking_url);
+  const selectedShiprocketQuote = shiprocketQuotes.find(quote => String(quote.courierId) === shiprocketCourierId);
+  const cheapestShiprocketRate = Math.min(...shiprocketQuotes.map(quote => Number(quote.rate)).filter(Number.isFinite));
+  const fastestShiprocketDays = Math.min(...shiprocketQuotes.map(quote => estimateDays(quote.estimatedDeliveryDays)).filter(Number.isFinite));
 
   async function submit(event) {
     event.preventDefault();
@@ -389,25 +392,56 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         </div>
       ) : null}
       {courier === 'shiprocket' && shiprocketQuotes.length ? (
-        <div className="shipmentSource full">
-          <div className="full">
-            <strong>All available Shiprocket {shiprocketQuotes[0]?.international ? 'international' : 'domestic'} services</strong>
-            <p className="muted">Select a courier, then book the shipment or return above.</p>
+        <section className="shiprocketResults full" aria-label="Shiprocket courier estimates">
+          <div className="shiprocketResultsHeader">
+            <div>
+              <span className="shiprocketEyebrow">{shiprocketQuotes.length} live estimates</span>
+              <h4>Choose a {shiprocketQuotes[0]?.international ? 'international' : 'domestic'} courier</h4>
+              <p className="muted">Prices and delivery dates are supplied by Shiprocket for this package.</p>
+            </div>
+            {selectedShiprocketQuote ? (
+              <div className="shiprocketSelectionSummary">
+                <span>Selected</span>
+                <strong>{selectedShiprocketQuote.courierName}</strong>
+                <b>{formatMoney(selectedShiprocketQuote.rate, selectedShiprocketQuote.currency)}</b>
+              </div>
+            ) : null}
+          </div>
             <div className="shiprocketQuoteList">
-              {shiprocketQuotes.map(quote => (
-                <label className="shiprocketQuote" key={quote.courierId}>
+              {shiprocketQuotes.map(quote => {
+                const selected = shiprocketCourierId === String(quote.courierId);
+                const isCheapest = Number(quote.rate) === cheapestShiprocketRate;
+                const isFastest = estimateDays(quote.estimatedDeliveryDays) === fastestShiprocketDays;
+                return (
+                <label className={`shiprocketQuote${selected ? ' selected' : ''}`} key={quote.courierId}>
                   <input type="radio" name="shiprocket_quote" checked={shiprocketCourierId === String(quote.courierId)} onChange={() => setShiprocketCourierId(String(quote.courierId))} />
-                  <span>
-                    <strong>{quote.courierName}{quote.recommended ? ' · Recommended' : ''}</strong>
-                    <span className="muted">
-                      {[quote.rate != null ? `${quote.currency || 'INR'} ${quote.rate}` : '', quote.estimatedDeliveryDate || (quote.estimatedDeliveryDays ? `${quote.estimatedDeliveryDays} days` : ''), quote.mode, quote.rating != null ? `Rating ${quote.rating}` : ''].filter(Boolean).join(' · ')}
+                  <span className="shiprocketQuoteBody">
+                    <span className="shiprocketQuoteTopline">
+                      <strong>{quote.courierName}</strong>
+                      <b className="shiprocketPrice">{formatMoney(quote.rate, quote.currency)}</b>
+                    </span>
+                    <span className="shiprocketBadges">
+                      {quote.recommended ? <em className="quoteBadge recommended">Recommended</em> : null}
+                      {isCheapest ? <em className="quoteBadge cheapest">Lowest price</em> : null}
+                      {isFastest ? <em className="quoteBadge fastest">Fastest</em> : null}
+                    </span>
+                    <span className="shiprocketQuoteMeta">
+                      <span><small>Delivery</small><strong>{quote.estimatedDeliveryDate || (quote.estimatedDeliveryDays ? `${quote.estimatedDeliveryDays} days` : 'Not available')}</strong></span>
+                      <span><small>Mode</small><strong>{quote.mode || 'Standard'}</strong></span>
+                      <span><small>Rating</small><strong>{quote.rating != null ? `${quote.rating} / 5` : '—'}</strong></span>
                     </span>
                   </span>
                 </label>
-              ))}
+              );})}
             </div>
-          </div>
-        </div>
+            <div className="shiprocketResultActions">
+              <button type="submit" name="booking_action" value="book_courier" disabled={busy || !shiprocketCourierId}>
+                {busy ? 'Booking shipment…' : `Book with ${selectedShiprocketQuote?.courierName || 'selected courier'}`}
+              </button>
+              <button type="button" className="secondary" onClick={getShiprocketEstimates} disabled={rateBusy}>Refresh estimates</button>
+              <small className="muted">Final charges may change if the courier measures a different package weight.</small>
+            </div>
+        </section>
       ) : null}
     </form>
   );
@@ -422,4 +456,19 @@ function normalizePickupLocation(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (['hsr', 'hsr gdp'].includes(normalized)) return 'HSR GDP';
   return 'Sis Vars';
+}
+
+function estimateDays(value) {
+  const days = String(value || '').match(/\d+/g)?.map(Number).filter(Number.isFinite) || [];
+  return days.length ? Math.max(...days) : Number.POSITIVE_INFINITY;
+}
+
+function formatMoney(value, currency = 'INR') {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 'Price unavailable';
+  try {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR', maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${currency || 'INR'} ${amount.toFixed(2)}`;
+  }
 }
