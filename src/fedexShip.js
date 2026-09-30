@@ -30,9 +30,25 @@ export function mapWixOrderToFedexShipment(order, config, options = {}) {
 }
 
 export async function createFedexShipment(payload, config) {
+  return requestFedexShip('/ship/v1/shipments', {
+    accountNumber: payload.accountNumber,
+    requestedShipment: payload.requestedShipment,
+    labelResponseOptions: payload.labelResponseOptions
+  }, config);
+}
+
+// This endpoint checks the shipment without creating an AWB or label.
+export async function validateFedexShipment(payload, config) {
+  return requestFedexShip('/ship/v1/shipments/packages/validate', {
+    accountNumber: payload.accountNumber,
+    requestedShipment: payload.requestedShipment
+  }, config);
+}
+
+async function requestFedexShip(path, payload, config) {
   validateFedexShipConfig(config);
   const token = await getFedexShipToken(config);
-  const response = await fetch(`${config.fedex.baseUrl.replace(/\/$/, '')}/ship/v1/shipments`, {
+  const response = await fetch(`${config.fedex.baseUrl.replace(/\/$/, '')}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -44,9 +60,12 @@ export async function createFedexShipment(payload, config) {
 
   const body = await safeJson(response);
   if (!response.ok) {
-    throw new Error(`FedEx Ship API failed (${response.status}): ${JSON.stringify(body)}`);
+    const error = new Error(`FedEx Ship API failed (${response.status}): ${JSON.stringify(body)}`);
+    error.carrierStatus = response.status;
+    error.transactionId = body.transactionId || '';
+    error.carrierErrorCodes = (body.errors || []).map(item => item.code).filter(Boolean);
+    throw error;
   }
-
   return body;
 }
 

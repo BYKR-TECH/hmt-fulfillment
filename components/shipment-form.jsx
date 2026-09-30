@@ -8,6 +8,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const [busy, setBusy] = useState(false);
   const [labelBusy, setLabelBusy] = useState(false);
   const [rateBusy, setRateBusy] = useState(false);
+  const [validationBusy, setValidationBusy] = useState(false);
   const [fedexRate, setFedexRate] = useState(null);
   const [courier, setCourier] = useState(order.courier || defaultCourierForOrder(order));
   const [shipmentType, setShipmentType] = useState('original');
@@ -119,6 +120,29 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     }
     params.set('_', String(Date.now()));
     window.location.href = `/api/crm/orders/${order.id}/fedex-template?${params.toString()}`;
+  }
+
+  async function validateFedexDetails(event) {
+    event.preventDefault();
+    setMessage('');
+    const body = Object.fromEntries(new FormData(event.currentTarget.form).entries());
+    setValidationBusy(true);
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/fedex-validate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        setMessage(`${(data.validation || [data.error || 'FedEx validation failed.']).join(', ')}${data.transaction_id ? ` Transaction: ${data.transaction_id}` : ''}`);
+        return;
+      }
+      const alerts = (data.alerts || []).map(alert => alert.message || alert.code).filter(Boolean);
+      setMessage(`FedEx checked the shipment details. No AWB was created.${alerts.length ? ` ${alerts.join('; ')}` : ''} CSB V clearance still requires FedEx confirmation.`);
+    } catch {
+      setMessage('FedEx validation could not be completed. Please try again.');
+    } finally {
+      setValidationBusy(false);
+    }
   }
 
   async function getFedexEstimate(event) {
@@ -301,6 +325,9 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         {labelUrl ? <a className="button secondary" href={labelUrl} target="_blank" rel="noreferrer">Download label</a> : null}
         {courier === 'fedex' ? (
           <>
+            <button type="button" className="secondary" onClick={validateFedexDetails} disabled={validationBusy || busy}>
+              {validationBusy ? 'Validating FedEx…' : 'Validate FedEx details'}
+            </button>
             <button type="button" className="secondary" onClick={getFedexEstimate} disabled={rateBusy}>
               {rateBusy ? 'Checking FedEx...' : 'Get FedEx estimate'}
             </button>
