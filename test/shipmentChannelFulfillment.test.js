@@ -162,6 +162,23 @@ test('tracking status before pickup skips channel fulfill', async () => {
   assert.equal(result.reason, 'status-before-pickup');
 });
 
+test('delivered status sends delivery confirmation instead of a stale pickup message', async () => {
+  let pickupSends = 0;
+  let deliverySends = 0;
+  const result = await fulfillChannelsForTrackingStatusChange(
+    { id: 'ship-1', order_id: 'order-1', waybill: 'AWB1', status: 'delivered' },
+    baseConfig(),
+    {
+      findOrderById: async () => ({ id: 'order-1' }),
+      sendPickupConfirmation: async () => { pickupSends += 1; },
+      sendDeliveryConfirmation: async () => { deliverySends += 1; return { status: 'sent' }; }
+    }
+  );
+  assert.equal(pickupSends, 0);
+  assert.equal(deliverySends, 1);
+  assert.equal(result.whatsapp.status, 'sent');
+});
+
 
 test('fulfillShipmentChannelsOnPickup writes Woo meta via tracking handler', async () => {
   const originalFetch = globalThis.fetch;

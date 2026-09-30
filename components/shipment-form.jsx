@@ -15,6 +15,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const [selectedPickupLocation, setSelectedPickupLocation] = useState(pickupLocation || 'Sis Vars');
   const [labelUrl, setLabelUrl] = useState(order.label_url || '');
   const [awbNumber, setAwbNumber] = useState(order.awb_number || '');
+  const [trackingUrl, setTrackingUrl] = useState(order.tracking_url || '');
   const [deliveryDetails, setDeliveryDetails] = useState({
     phone: order.phone || '',
     pincode: order.pincode || '',
@@ -60,6 +61,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       }
       if (data.label_url) setLabelUrl(data.label_url);
       if (data.awb_number) setAwbNumber(data.awb_number);
+      if (data.tracking_url) setTrackingUrl(data.tracking_url);
       setMessage(data.demo ? 'Validated in demo mode. Configure courier credentials and Supabase to persist.' : data.message || 'Shipment saved.');
     } catch {
       setMessage('Shipment booking could not be completed. Please check your connection and try again.');
@@ -262,6 +264,17 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       <label>
         <span>AWB/manual override</span>
         <input name="awb_number" value={awbNumber} onChange={event => setAwbNumber(event.target.value)} placeholder="Optional when courier API returns AWB" />
+      </label>
+      <label>
+        <span>Direct tracking link{['delhivery', 'fedex', 'shiprocket'].includes(courier) ? ' (optional)' : ''}</span>
+        <input
+          name="tracking_url"
+          type="url"
+          value={trackingUrl}
+          onChange={event => setTrackingUrl(event.target.value)}
+          placeholder="https://carrier.example/track/..."
+          required={!['delhivery', 'fedex', 'shiprocket'].includes(courier)}
+        />
       </label>
       <label>
         <span>Label URL</span>

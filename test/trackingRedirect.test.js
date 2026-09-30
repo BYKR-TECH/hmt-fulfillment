@@ -25,6 +25,16 @@ test('looks up the courier before redirecting', async () => {
   assert.deepEqual(result, { ok: true, url: 'https://www.fedex.com/fedextrack/?trknbr=771234567890' });
 });
 
+test('prefers an operator supplied HTTPS tracking link for unsupported couriers', async () => {
+  const result = await resolveTrackingRedirect(fakeDb({ waybill: 'SMC5530091', courier_code: 'shree_maruti', tracking_url: 'https://carrier.example/track/SMC5530091' }), 'SMC5530091');
+  assert.equal(result.url, 'https://carrier.example/track/SMC5530091');
+});
+
+test('rejects unsafe stored redirect protocols', async () => {
+  const result = await resolveTrackingRedirect(fakeDb({ waybill: '52270010001982', courier_code: 'delhivery', tracking_url: 'javascript:alert(1)' }), '52270010001982');
+  assert.equal(result.url, 'https://www.delhivery.com/track/package/52270010001982');
+});
+
 test('returns not found instead of guessing an unknown shipment', async () => {
   const result = await resolveTrackingRedirect(fakeDb(null), 'UNKNOWN-123');
   assert.equal(result.status, 404);

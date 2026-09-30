@@ -19,3 +19,14 @@ test('manual AWB saving gives an actionable error when the AWB is absent', () =>
 test('courier booking still validates delivery details', () => {
   assert.ok(validateShipmentPayload({ country: 'IN' }).includes('Invalid pincode'));
 });
+
+test('unsupported manual courier requires a safe direct tracking link', () => {
+  assert.deepEqual(
+    validateShipmentPayload({ courier: 'shree_maruti', awb_number: 'SMC-123' }, { manualAwb: true }),
+    ['A valid HTTPS tracking link is required for couriers without automatic tracking']
+  );
+  assert.deepEqual(
+    validateShipmentPayload({ courier: 'shree_maruti', awb_number: 'SMC-123', tracking_url: 'https://carrier.example/SMC-123' }, { manualAwb: true }),
+    []
+  );
+});

@@ -94,8 +94,14 @@ export async function fulfillChannelsForTrackingStatusChange(shipment, config, o
     ...options
   });
   try {
-    const sendConfirmation = options.sendPickupConfirmation || (await import('../lib/crm/whatsapp-notifications.js')).sendPickupConfirmationOnce;
-    result.whatsapp = await sendConfirmation(order, shipment, { config });
+    const notifications = await import('../lib/crm/whatsapp-notifications.js');
+    if (String(shipment?.status || '').trim().toLowerCase().replaceAll('_', '-') === 'delivered') {
+      const sendDelivery = options.sendDeliveryConfirmation || notifications.sendDeliveryConfirmationOnce;
+      result.whatsapp = await sendDelivery(order, shipment, { config, trigger: options.trigger || 'tracking' });
+    } else {
+      const sendConfirmation = options.sendPickupConfirmation || notifications.sendPickupConfirmationOnce;
+      result.whatsapp = await sendConfirmation(order, shipment, { config, trigger: options.trigger || 'tracking' });
+    }
   } catch (error) {
     console.error(
       `[whatsapp-shipment-confirmation] tracking callback soft-fail for shipment ${shipment?.id || shipment?.waybill || ''}: ${error.message}`

@@ -14,6 +14,9 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
     if (body.whatsapp_order_confirmation_enabled_at) {
       body.whatsapp_order_confirmation_enabled_at = new Date(body.whatsapp_order_confirmation_enabled_at).toISOString();
     }
+    for (const key of ['whatsapp_delivery_confirmation_enabled_at', 'whatsapp_abandoned_cart_enabled_at']) {
+      if (body[key]) body[key] = new Date(body[key]).toISOString();
+    }
     const response = await fetch('/api/crm/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -255,6 +258,30 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
             <input name="whatsapp_shipment_tracking_button_url" defaultValue={automation.whatsappShipmentTrackingButtonUrl} />
           </label>
           <p className="muted full">Template variables: customer name, order number, and AWB. The manual send action remains available after booking and uses the same duplicate guard.</p>
+          <h3 className="formSection">WhatsApp delivery confirmations</h3>
+          <label className="checkItem full">
+            <input type="checkbox" name="whatsapp_delivery_confirmation_enabled" defaultChecked={automation.whatsappDeliveryConfirmationEnabled} />
+            <span>Send the approved delivery template when carrier tracking reaches delivered</span>
+          </label>
+          <label>
+            <span>Start sending from</span>
+            <input name="whatsapp_delivery_confirmation_enabled_at" type="datetime-local" defaultValue={dateTimeLocal(automation.whatsappDeliveryConfirmationEnabledAt)} />
+          </label>
+          <label><span>Delivery template name</span><input name="whatsapp_delivery_template_name" defaultValue={automation.whatsappDeliveryTemplateName} /></label>
+          <label><span>Template language</span><input name="whatsapp_delivery_template_language" defaultValue={automation.whatsappDeliveryTemplateLanguage} /></label>
+          <label><span>Template category</span><select name="whatsapp_delivery_template_category" defaultValue={automation.whatsappDeliveryTemplateCategory}><option value="UTILITY">Utility</option><option value="MARKETING">Marketing</option></select></label>
+          <p className="muted full">A direct jump from booked to delivered sends only the delivery confirmation, not a stale shipment message.</p>
+          <h3 className="formSection">WhatsApp abandoned-cart reminders</h3>
+          <label className="checkItem full">
+            <input type="checkbox" name="whatsapp_abandoned_cart_enabled" defaultChecked={automation.whatsappAbandonedCartEnabled} />
+            <span>Send the approved abandoned-cart template once after the delay</span>
+          </label>
+          <label><span>Start sending from</span><input name="whatsapp_abandoned_cart_enabled_at" type="datetime-local" defaultValue={dateTimeLocal(automation.whatsappAbandonedCartEnabledAt)} /></label>
+          <label><span>Delay after abandonment (minutes)</span><input name="whatsapp_abandoned_cart_delay_minutes" type="number" min="15" defaultValue={automation.whatsappAbandonedCartDelayMinutes} /></label>
+          <label><span>Abandoned-cart template name</span><input name="whatsapp_abandoned_cart_template_name" defaultValue={automation.whatsappAbandonedCartTemplateName} /></label>
+          <label><span>Template language</span><input name="whatsapp_abandoned_cart_template_language" defaultValue={automation.whatsappAbandonedCartTemplateLanguage} /></label>
+          <label><span>Template category</span><select name="whatsapp_abandoned_cart_template_category" defaultValue={automation.whatsappAbandonedCartTemplateCategory}><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option></select></label>
+          <p className="muted full">Recovered carts, old carts before the start time, and carts without a WhatsApp number or product link are skipped.</p>
         </div>
       </section>
 

@@ -74,7 +74,18 @@ export function getConfig() {
       shipmentTemplateName: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_TEMPLATE || 'shipment_confirmation_3',
       shipmentTemplateLanguage: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_LANGUAGE || 'en_US',
       shipmentTemplateCategory: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_CATEGORY || 'UTILITY',
-      shipmentTrackingButtonUrl: process.env.WHATSAPP_SHIPMENT_TRACKING_BUTTON_URL || 'https://track.holdmythrottle.com/{{1}}'
+      shipmentTrackingButtonUrl: process.env.WHATSAPP_SHIPMENT_TRACKING_BUTTON_URL || 'https://track.holdmythrottle.com/{{1}}',
+      deliveryConfirmationEnabled: process.env.WHATSAPP_DELIVERY_CONFIRMATION_ENABLED === 'true',
+      deliveryConfirmationEnabledAt: process.env.WHATSAPP_DELIVERY_CONFIRMATION_ENABLED_AT || '',
+      deliveryTemplateName: process.env.WHATSAPP_DELIVERY_CONFIRMATION_TEMPLATE || 'delivery_confirmation_1',
+      deliveryTemplateLanguage: process.env.WHATSAPP_DELIVERY_CONFIRMATION_LANGUAGE || 'en_US',
+      deliveryTemplateCategory: process.env.WHATSAPP_DELIVERY_CONFIRMATION_CATEGORY || 'MARKETING',
+      abandonedCartEnabled: process.env.WHATSAPP_ABANDONED_CART_ENABLED === 'true',
+      abandonedCartEnabledAt: process.env.WHATSAPP_ABANDONED_CART_ENABLED_AT || '',
+      abandonedCartDelayMinutes: positiveNumber(process.env.WHATSAPP_ABANDONED_CART_DELAY_MINUTES, 60),
+      abandonedCartTemplateName: process.env.WHATSAPP_ABANDONED_CART_TEMPLATE || 'abandoned_cart',
+      abandonedCartTemplateLanguage: process.env.WHATSAPP_ABANDONED_CART_LANGUAGE || 'en',
+      abandonedCartTemplateCategory: process.env.WHATSAPP_ABANDONED_CART_CATEGORY || 'MARKETING'
     },
     delhivery: {
       env: delhiveryEnv,
