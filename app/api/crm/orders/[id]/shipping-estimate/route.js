@@ -39,6 +39,7 @@ export async function POST(request, { params }) {
       const quotes = await getShiprocketRates({
         pickupPincode: body.pickup_pincode,
         deliveryPincode: body.pincode || address.postal_code,
+        deliveryCountry: body.country || address.country || country,
         paymentMode: body.payment_mode,
         weightGrams: packageDefaults.weight_grams,
         lengthCm: packageDefaults.length_cm,

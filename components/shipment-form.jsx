@@ -198,7 +198,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       const quotes = data.quotes || [];
       setShiprocketQuotes(quotes);
       if (quotes[0]?.courierId != null) setShiprocketCourierId(String(quotes[0].courierId));
-      setMessage(quotes.length ? `${quotes.length} Shiprocket courier option${quotes.length === 1 ? '' : 's'} found.` : 'No Shiprocket courier is available for this route.');
+      setMessage(quotes.length ? `${quotes.length} Shiprocket ${quotes[0]?.international ? 'international' : 'domestic'} courier option${quotes.length === 1 ? '' : 's'} found.` : 'No Shiprocket courier is available for this route.');
     } catch {
       setMessage('Shiprocket estimates could not be loaded. Please try again.');
     } finally {
@@ -391,14 +391,14 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       {courier === 'shiprocket' && shiprocketQuotes.length ? (
         <div className="shipmentSource full">
           <div className="full">
-            <strong>Available Shiprocket services</strong>
+            <strong>All available Shiprocket {shiprocketQuotes[0]?.international ? 'international' : 'domestic'} services</strong>
             <p className="muted">Select a courier, then book the shipment or return above.</p>
             <div className="shiprocketQuoteList">
               {shiprocketQuotes.map(quote => (
                 <label className="shiprocketQuote" key={quote.courierId}>
                   <input type="radio" name="shiprocket_quote" checked={shiprocketCourierId === String(quote.courierId)} onChange={() => setShiprocketCourierId(String(quote.courierId))} />
                   <span>
-                    <strong>{quote.courierName}</strong>
+                    <strong>{quote.courierName}{quote.recommended ? ' · Recommended' : ''}</strong>
                     <span className="muted">
                       {[quote.rate != null ? `${quote.currency || 'INR'} ${quote.rate}` : '', quote.estimatedDeliveryDate || (quote.estimatedDeliveryDays ? `${quote.estimatedDeliveryDays} days` : ''), quote.mode, quote.rating != null ? `Rating ${quote.rating}` : ''].filter(Boolean).join(' · ')}
                     </span>

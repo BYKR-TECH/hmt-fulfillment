@@ -4,8 +4,18 @@ let tokenExpiresAt = 0;
 export async function getShiprocketRates(params, config) {
   validateCredentials(config);
   const token = await getShiprocketToken(config);
-  const url = new URL(`${baseUrl(config)}/courier/serviceability/`);
-  const query = {
+  const destinationCountry = normalizeCountryCode(params.deliveryCountry);
+  const isInternational = destinationCountry !== 'IN';
+  if (isInternational && params.isReturn) {
+    throw new Error('Shiprocket international return estimates are not supported by the international serviceability API.');
+  }
+  const url = new URL(`${baseUrl(config)}${isInternational ? '/international/courier/serviceability' : '/courier/serviceability/'}`);
+  const query = isInternational ? {
+    pickup_postcode: params.pickupPincode || config.shiprocket.pickupPincode,
+    delivery_country: destinationCountry,
+    cod: 0,
+    weight: gramsToKg(params.weightGrams)
+  } : {
     pickup_postcode: params.pickupPincode || config.shiprocket.pickupPincode,
     delivery_postcode: params.deliveryPincode,
     cod: params.paymentMode === 'COD' ? 1 : 0,
@@ -19,24 +29,26 @@ export async function getShiprocketRates(params, config) {
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
   }
-  if (!query.pickup_postcode || !query.delivery_postcode) {
-    throw new Error('Shiprocket estimates require pickup and delivery pincodes. Configure SHIPROCKET_PICKUP_PINCODE.');
+  if (!query.pickup_postcode || (!isInternational && !query.delivery_postcode)) {
+    throw new Error(`Shiprocket ${isInternational ? 'international' : 'domestic'} estimates require ${isInternational ? 'a pickup pincode and destination country' : 'pickup and delivery pincodes'}. Configure SHIPROCKET_PICKUP_PINCODE.`);
   }
 
   const body = await shiprocketRequest(url, { method: 'GET' }, token, config);
   const companies = body?.data?.available_courier_companies || [];
+  const recommendedCourierId = body?.data?.recommended_courier_company_id ?? body?.data?.shiprocket_recommended_courier_id;
   return companies.map(company => ({
     courierId: company.courier_company_id ?? company.courier_id,
     courierName: company.courier_name || company.courier_company_name || 'Shiprocket courier',
-    rate: numberOrNull(company.rate ?? company.freight_charge),
+    rate: numberOrNull(company.rate?.total ?? company.rate?.rate ?? company.rate ?? company.freight_charge),
     freightCharge: numberOrNull(company.freight_charge),
     codCharges: numberOrNull(company.cod_charges),
     currency: body.currency || 'INR',
     estimatedDeliveryDays: company.estimated_delivery_days || company.etd || '',
     estimatedDeliveryDate: company.etd || company.expected_delivery_date || '',
-    mode: company.mode || company.transportation_mode || '',
+    mode: normalizeCourierMode(company.mode ?? company.transportation_mode),
     rating: numberOrNull(company.rating),
-    recommended: Boolean(company.recommendation_status || company.is_recommended),
+    recommended: Boolean(company.recommendation_status || company.is_recommended || (recommendedCourierId != null && String(recommendedCourierId) === String(company.courier_company_id ?? company.courier_id))),
+    international: isInternational || Boolean(company.is_international),
     raw: company
   })).filter(quote => quote.courierId != null);
 }
@@ -177,9 +189,9 @@ export async function cancelShiprocketOrder(shiprocketOrderId, config) {
 }
 
 async function getShiprocketToken(config) {
-  if (config.shiprocket.token) return config.shiprocket.token;
   if (cachedToken && tokenExpiresAt > Date.now() + 60_000) return cachedToken;
   if (!config.shiprocket.email || !config.shiprocket.password) {
+    if (config.shiprocket.token) return config.shiprocket.token;
     throw new Error('Shiprocket requires SHIPROCKET_API_TOKEN or SHIPROCKET_EMAIL/SHIPROCKET_PASSWORD.');
   }
   const response = await fetch(`${baseUrl(config)}/auth/login`, {
@@ -243,6 +255,12 @@ function normalizeCountry(value) {
   return country === 'IN' ? 'India' : value;
 }
 
+function normalizeCountryCode(value) {
+  const country = String(value || 'IN').trim().toUpperCase();
+  if (country === 'INDIA') return 'IN';
+  return country || 'IN';
+}
+
 function extractEmail(order, config) {
   return order?.buyerInfo?.email || order?.buyer?.BuyerEmail || order?.email || config.shiprocket.email || '';
 }
@@ -264,6 +282,12 @@ function optionalInteger(value) {
 function numberOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function normalizeCourierMode(value) {
+  if (value === 0 || String(value).toLowerCase() === 'surface') return 'Surface';
+  if (value === 1 || String(value).toLowerCase() === 'air') return 'Air';
+  return String(value || '');
 }
 
 async function safeJson(response) {

@@ -37,6 +37,29 @@ test('normalizes Shiprocket serviceability quotes with price and delivery estima
   } finally { global.fetch = originalFetch; }
 });
 
+test('fetches every international Shiprocket courier and normalizes nested rates', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async url => {
+    const requestUrl = String(url);
+    assert.match(requestUrl, /\/international\/courier\/serviceability/);
+    assert.match(requestUrl, /delivery_country=US/);
+    assert.match(requestUrl, /pickup_postcode=560001/);
+    assert.match(requestUrl, /cod=0/);
+    assert.doesNotMatch(requestUrl, /delivery_postcode/);
+    return new Response(JSON.stringify({ currency: '', data: { available_courier_companies: [
+      { courier_company_id: 140, courier_name: 'SRX Premium', rate: { rate: '108.01' }, etd: 'Oct 10 - Oct 15', estimated_delivery_days: '10 - 15', is_international: 1 },
+      { courier_company_id: 326, courier_name: 'India Post EMS', rate: { rate: 2330.6, total: 2340.6 }, estimated_delivery_days: '4 - 7', is_international: 1 }
+    ] } }), { status: 200 });
+  };
+  try {
+    const quotes = await getShiprocketRates({ deliveryCountry: 'US', weightGrams: 400 }, config());
+    assert.equal(quotes.length, 2);
+    assert.equal(quotes[0].rate, 108.01);
+    assert.equal(quotes[1].rate, 2340.6);
+    assert.equal(quotes.every(quote => quote.international), true);
+  } finally { global.fetch = originalFetch; }
+});
+
 test('maps a forward order and books the selected Shiprocket courier', async () => {
   const payload = mapOrderToShiprocket({ id: 'wix-1', number: '1001', buyerInfo: { email: 'buyer@example.com' }, lineItems: [{ productName: { original: 'Light kit' }, quantity: 1, price: { amount: 2500 } }] }, config(), {
     courierId: 42,
