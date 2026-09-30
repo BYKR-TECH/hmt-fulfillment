@@ -191,10 +191,12 @@ test('persists tracking details pulled from Wix fulfillments', async () => {
     );
 
     const shipmentPost = requests.find(request => request.url.includes('/rest/v1/shipments') && request.method === 'POST');
+    const attemptPosts = requests.filter(request => request.url.includes('/rest/v1/shipment_attempts') && request.method === 'POST');
     assert.equal(result.persisted, 1);
     assert.equal(shipmentPost.body.waybill, 'AWB-WIX-1');
     assert.equal(shipmentPost.body.courier_code, 'delhivery');
     assert.equal(shipmentPost.body.carrier_response.trackingInfo.trackingLink, 'https://www.delhivery.com/track/package/AWB-WIX-1');
+    assert.equal(attemptPosts.length, 0);
   } finally {
     global.fetch = originalFetch;
     delete process.env.SUPABASE_URL;
@@ -263,8 +265,82 @@ test('does not downgrade delivered shipments when Wix fulfillment only has track
 
     const shipmentPatch = requests.find(request => request.url.includes('/rest/v1/shipments') && request.method === 'PATCH');
     const orderPatch = requests.find(request => request.url.includes('/rest/v1/orders') && request.method === 'PATCH');
+    const attemptPosts = requests.filter(request => request.url.includes('/rest/v1/shipment_attempts') && request.method === 'POST');
     assert.equal(shipmentPatch.body.status, 'delivered');
     assert.equal(orderPatch.body.shipment_status, 'delivered');
+    assert.equal(attemptPosts.length, 0);
+  } finally {
+    global.fetch = originalFetch;
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+});
+
+test('skips writes for an unchanged Wix fulfillment', async () => {
+  const originalFetch = global.fetch;
+  const requests = [];
+  const fulfillment = {
+    id: 'fulfillment-id',
+    createdDate: '2026-06-10T08:09:21.460Z',
+    trackingInfo: {
+      trackingNumber: 'AWB-WIX-1',
+      shippingProvider: 'Delhivery',
+      trackingLink: 'https://www.delhivery.com/track/package/AWB-WIX-1'
+    }
+  };
+
+  global.fetch = async (url, options = {}) => {
+    requests.push({ url: String(url), method: options.method || 'GET' });
+    if (String(url).includes('/rest/v1/shipments?order_id')) {
+      return jsonResponse([
+        {
+          id: 'shipment-id',
+          order_id: 'order-db-id',
+          legacy_order_id: 'wix-order-id',
+          order_number: '1001',
+          shipment_type: 'original',
+          direction: 'forward',
+          flow: 'domestic',
+          courier_code: 'delhivery',
+          courier_service_code: 'express',
+          service_mode: null,
+          status: 'booked',
+          waybill: 'AWB-WIX-1',
+          upload_wbn: null,
+          pickup_location: null,
+          length_cm: null,
+          width_cm: null,
+          height_cm: null,
+          weight_grams: 0,
+          cod_amount: 0,
+          request_payload: { source: 'wix-fulfillment', fulfillment },
+          carrier_response: {
+            source: 'wix',
+            fulfillmentId: 'fulfillment-id',
+            trackingInfo: fulfillment.trackingInfo,
+            createdDate: fulfillment.createdDate,
+            updatedDate: null
+          },
+          label_url: null,
+          label_format: null,
+          error: null,
+          message: null
+        }
+      ]);
+    }
+    throw new Error(`Unexpected request ${options.method || 'GET'} ${url}`);
+  };
+  process.env.SUPABASE_URL = 'https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+
+  try {
+    const result = await upsertWixFulfillmentTracking(
+      { id: 'order-db-id', wix_order_id: 'wix-order-id', order_number: '1001' },
+      [fulfillment]
+    );
+
+    assert.equal(result.persisted, 1);
+    assert.equal(requests.filter(request => request.method !== 'GET').length, 0);
   } finally {
     global.fetch = originalFetch;
     delete process.env.SUPABASE_URL;

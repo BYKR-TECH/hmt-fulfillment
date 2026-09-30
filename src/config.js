@@ -52,6 +52,10 @@ export function getConfig() {
         intervalMs: positiveNumber(process.env.WOO_ORDER_SYNC_INTERVAL_MINUTES, 15) * 60 * 1000,
         pageSize: clamp(Number(process.env.WOO_ORDER_SYNC_PAGE_SIZE || 25), 1, 100),
         maxPages: clamp(Number(process.env.WOO_ORDER_SYNC_MAX_PAGES || 3), 1, 20)
+      },
+      // Fail-closed: Ops → Woo shipment meta write-back off unless explicitly enabled.
+      shipmentWriteback: {
+        enabled: process.env.WOO_SHIPMENT_WRITEBACK_ENABLED === 'true'
       }
     },
     supabase: {
@@ -65,7 +69,12 @@ export function getConfig() {
       inboxId: process.env.CHATWOOT_WHATSAPP_INBOX_ID || '1',
       orderTemplateName: process.env.WHATSAPP_ORDER_CONFIRMATION_TEMPLATE || 'order_management_no_cta_5',
       orderTemplateLanguage: process.env.WHATSAPP_ORDER_CONFIRMATION_LANGUAGE || 'en_US',
-      orderTemplateCategory: process.env.WHATSAPP_ORDER_CONFIRMATION_CATEGORY || 'UTILITY'
+      orderTemplateCategory: process.env.WHATSAPP_ORDER_CONFIRMATION_CATEGORY || 'UTILITY',
+      shipmentConfirmationEnabled: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_ENABLED === 'true',
+      shipmentTemplateName: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_TEMPLATE || 'shipment_confirmation_3',
+      shipmentTemplateLanguage: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_LANGUAGE || 'en_US',
+      shipmentTemplateCategory: process.env.WHATSAPP_SHIPMENT_CONFIRMATION_CATEGORY || 'UTILITY',
+      shipmentTrackingButtonUrl: process.env.WHATSAPP_SHIPMENT_TRACKING_BUTTON_URL || 'https://track.holdmythrottle.com/{{1}}'
     },
     delhivery: {
       env: delhiveryEnv,

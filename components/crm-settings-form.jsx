@@ -229,6 +229,32 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
             </select>
           </label>
           <p className="muted full">Variables: customer name, order number, then the ordered product. The start time prevents accidental messages to historical orders.</p>
+          <h3 className="formSection">WhatsApp shipment confirmations</h3>
+          <label className="checkItem full">
+            <input type="checkbox" name="whatsapp_shipment_confirmation_enabled" defaultChecked={automation.whatsappShipmentConfirmationEnabled} />
+            <span>Send the approved shipment template when a booked package is picked up</span>
+          </label>
+          <label>
+            <span>Shipment template name</span>
+            <input name="whatsapp_shipment_template_name" defaultValue={automation.whatsappShipmentTemplateName} />
+          </label>
+          <label>
+            <span>Shipment template language</span>
+            <input name="whatsapp_shipment_template_language" defaultValue={automation.whatsappShipmentTemplateLanguage} />
+          </label>
+          <label>
+            <span>Shipment template category</span>
+            <select name="whatsapp_shipment_template_category" defaultValue={automation.whatsappShipmentTemplateCategory}>
+              <option value="UTILITY">Utility</option>
+              <option value="MARKETING">Marketing</option>
+              <option value="AUTHENTICATION">Authentication</option>
+            </select>
+          </label>
+          <label>
+            <span>Tracking button URL</span>
+            <input name="whatsapp_shipment_tracking_button_url" defaultValue={automation.whatsappShipmentTrackingButtonUrl} />
+          </label>
+          <p className="muted full">Template variables: customer name, order number, and AWB. The manual send action remains available after booking and uses the same duplicate guard.</p>
         </div>
       </section>
 
