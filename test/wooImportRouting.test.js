@@ -79,3 +79,20 @@ test('repair only pairs misclassified native Woo records with an unambiguous cou
   assert.equal(verifyWooOrderRepair({ ...row, order_items: [] }, woo), false);
   assert.equal(verifyWooOrderRepair({ ...row, source: 'wix' }, woo), false);
 });
+
+test('Woo resync without a source tax ID preserves an existing customer GSTIN', async t => {
+  const previousFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = previousFetch; });
+  let customerPatch;
+  globalThis.fetch = async (url, init = {}) => {
+    const table = new URL(url).pathname.split('/').pop();
+    const body = init.body ? JSON.parse(init.body) : null;
+    if (table === 'customers' && init.method === 'GET') return new Response(JSON.stringify([{ id: 'customer', tax_id: '29ABCDE1234F1Z5', tax_id_type: 'GSTIN' }]));
+    if (table === 'customers' && init.method === 'PATCH') customerPatch = body;
+    return new Response(JSON.stringify(init.method === 'GET' ? [] : [{ id: `${table}-id`, ...body }]));
+  };
+  const { upsertWooCommerceOrder } = await import('../src/store.js');
+  await upsertWooCommerceOrder(woo);
+  assert.equal(customerPatch.tax_id, '29ABCDE1234F1Z5');
+  assert.equal(customerPatch.tax_id_type, 'GSTIN');
+});

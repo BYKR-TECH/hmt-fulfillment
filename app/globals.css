@@ -1000,3 +1000,14 @@ label span {
     padding: 14px;
   }
 }
+
+/* Full order information stays together beneath each summary row. */
+.orderDetailsRow td { padding: 0 14px 18px; background: #fbfcfd; }
+.orderDetailsGrid { display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 1fr; gap: 24px; padding: 14px; }
+.orderDetailsGrid h3 { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+.orderDetailsGrid p { font-size: 13px; margin: 4px 0; }
+.orderAddress address { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-style: normal; overflow-wrap: anywhere; }
+.orderTaxDetails { overflow-wrap: anywhere; }
+.orderAmounts a { display: block; font-size: 13px; margin-top: 8px; }
+.orderPagination { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; padding: 16px; font-size: 13px; }
+.orderPagination > div { align-items: center; display: flex; gap: 12px; }
