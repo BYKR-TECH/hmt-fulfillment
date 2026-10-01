@@ -162,3 +162,18 @@ test('page navigation preserves active filters and resets pagination when filter
   assert.match(html, /action="\/orders"/);
   assert.doesNotMatch(html, /name="page"/);
 });
+
+test('order and GST amounts retain paise instead of rounding fractional tax to zero', async () => {
+  const { api } = dataHarness([{ ...fixture(1), tax_amount: 0.15, subtotal: 0.85, total_amount: 1 }]);
+  const orders = (await api.listOrdersPage()).orders;
+  assert.equal(api.formatCurrency(0.15), '₹0.15');
+  const { OrderContents } = load('../components/order-contents.jsx', { '@/lib/crm/data': api });
+  const { OrderTable } = load('../components/order-table.jsx', {
+    'next/link': linkMock, '@/lib/crm/data': api, './order-contents': { OrderContents },
+    './status-pill': { StatusPill: ({ value }) => React.createElement('span', null, value) },
+    '@/lib/crm/constants': { STATUS_FILTERS: [] }
+  });
+  const html = renderToStaticMarkup(React.createElement(OrderTable, { orders, showDetails: true }));
+  assert.match(html, /Tax recorded: <strong>₹0.15<\/strong>/);
+  assert.match(html, /Subtotal: ₹0.85/);
+});
