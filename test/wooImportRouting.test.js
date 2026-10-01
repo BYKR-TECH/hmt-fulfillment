@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { planWooOrderRepairs } from '../scripts/repair-misclassified-woo-orders.js';
+import { planWooOrderRepairs, verifyWooOrderRepair } from '../scripts/repair-misclassified-woo-orders.js';
 import { buildInvoiceModel, buildInvoicePdf } from '../lib/crm/invoice-pdf.js';
 
 const woo = {
@@ -69,4 +69,13 @@ test('repair only pairs misclassified native Woo records with an unambiguous cou
   const { findOrderById } = await import('../src/store.js');
   assert.equal((await findOrderById('alias')).id, 'original');
   assert.equal(queries[1].get('source'), 'neq.merged');
+});
+
+ test('repair verification permits an address absent in Woo, but rejects losing a supplied address or item', () => {
+  const row = { source: 'woocommerce', wix_order_id: null, customers: { name: 'Test Buyer' }, shipping_address: null, order_items: [{ product_name: 'Cruise Control Kit' }] };
+  assert.equal(verifyWooOrderRepair(row, { ...woo, billing: { first_name: 'Test' }, shipping: {} }), true);
+  assert.equal(verifyWooOrderRepair(row, woo), false);
+  assert.equal(verifyWooOrderRepair({ ...row, shipping_address: { address_line1: 'Test street' } }, woo), true);
+  assert.equal(verifyWooOrderRepair({ ...row, order_items: [] }, woo), false);
+  assert.equal(verifyWooOrderRepair({ ...row, source: 'wix' }, woo), false);
 });

@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { getConfig } from '../src/config.js';
 import { SupabaseRestClient } from '../src/supabase.js';
 import { isWooCommerceRawOrder } from '../src/wooOrderShape.js';
+import { normalizeWooCommerceOrder } from '../src/fulfillment.js';
 import { upsertWooCommerceOrder } from '../src/store.js';
 
 export function planWooOrderRepairs(rows) {
@@ -14,6 +15,16 @@ export function planWooOrderRepairs(rows) {
     if (matches.length !== 1) throw new Error(`Expected one Woo counterpart for ${broken.id}; got ${matches.length}`);
     return { broken, counterpart: matches[0] };
   });
+}
+
+export function verifyWooOrderRepair(row, payload) {
+  const expected = normalizeWooCommerceOrder(payload);
+  // Pickup/test orders can legitimately have no address in Woo itself.
+  const requiresAddress = Boolean(expected.shippingAddress.address_line1);
+  return row?.source === 'woocommerce' && !row.wix_order_id && Boolean(row.customers?.name)
+    && (!requiresAddress || Boolean(row.shipping_address?.address_line1))
+    && row.order_items?.length === expected.items.length
+    && row.order_items.every(item => Boolean(item.product_name));
 }
 
 async function main() {
@@ -72,7 +83,7 @@ async function main() {
     }
     await upsertWooCommerceOrder(counterpart.raw_order);
     const [verified] = await db.select('orders', `select=id,source,wix_order_id,customers(name),shipping_address:customer_addresses!orders_shipping_address_id_fkey(address_line1),order_items(id,product_name)&id=eq.${broken.id}`);
-    if (verified.source !== 'woocommerce' || verified.wix_order_id || !verified.customers?.name || !verified.shipping_address?.address_line1 || verified.order_items.length !== counterpart.raw_order.line_items.length) {
+    if (!verifyWooOrderRepair(verified, counterpart.raw_order)) {
       throw new Error(`Repair verification failed for ${broken.id}; backup retained.`);
     }
     console.log(`Repaired order ${broken.order_number}: customer, address and ${verified.order_items.length} invoice items; UUID and shipments retained.`);
