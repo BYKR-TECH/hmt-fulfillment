@@ -942,12 +942,20 @@ async function upsertAmazonCustomer(supabase, customer) {
   if (customer.email) {
     const existing = await supabase.select('customers', `email=eq.${encodeURIComponent(customer.email)}&limit=1`);
     if (existing && existing.length > 0) {
-      return supabase.patch('customers', `id=eq.${existing[0].id}`, customer);
+      return supabase.patch('customers', `id=eq.${existing[0].id}`, {
+        ...customer,
+        tax_id: customer.tax_id || existing[0].tax_id || null,
+        tax_id_type: customer.tax_id_type || existing[0].tax_id_type || null
+      });
     }
   } else if (customer.phone) {
     const existing = await supabase.select('customers', `phone=eq.${encodeURIComponent(customer.phone)}&limit=1`);
     if (existing && existing.length > 0) {
-      return supabase.patch('customers', `id=eq.${existing[0].id}`, customer);
+      return supabase.patch('customers', `id=eq.${existing[0].id}`, {
+        ...customer,
+        tax_id: customer.tax_id || existing[0].tax_id || null,
+        tax_id_type: customer.tax_id_type || existing[0].tax_id_type || null
+      });
     }
   }
   return supabase.insert('customers', customer);

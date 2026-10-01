@@ -1,3 +1,4 @@
+import { orderDisplayDetails } from '../lib/crm/order-display.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isAwaitingWarehousePickup, canConfirmPickup, hasCompletedPickup } from '../lib/crm/pickup.js';
@@ -60,6 +61,7 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
     return query;
   } };
   const mocks = {
+    './order-display.js': { orderDisplayDetails },
     './pickup.js': { isAwaitingWarehousePickup, canConfirmPickup },
     './shipment-dedup': { findMatchingShipment: () => null, isDuplicateShipmentError: () => false },
     './direct-courier-booking.js': {

@@ -1,3 +1,5 @@
+import { extractOrderTaxDetails } from '../lib/crm/order-tax.js';
+
 export function normalizeWixOrder(order, config = {}) {
   const destination = order?.shippingInfo?.logistics?.shippingDestination || {};
   const shippingAddress = destination.address || {};
@@ -348,6 +350,7 @@ export function normalizeWooCommerceOrder(payload, config = {}) {
   const status = mapWooStatus(order.status);
   const currency = order.currency || 'INR';
   const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+  const buyerTax = extractOrderTaxDetails(order);
 
   return {
     customer: {
@@ -355,8 +358,8 @@ export function normalizeWooCommerceOrder(payload, config = {}) {
       name: customerName,
       email: email || null,
       phone: phone || null,
-      tax_id: null,
-      tax_id_type: null,
+      tax_id: buyerTax.id || null,
+      tax_id_type: buyerTax.type || null,
       raw_customer: {
         billing,
         shipping,

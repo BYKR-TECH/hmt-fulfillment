@@ -77,6 +77,8 @@ function mockSupabase(tables) {
         or(expr) { q.or = expr; return api; },
         ilike(field, pattern) { q.ilike = { field, pattern }; return api; },
         in(field, values) { q.in = { field, values }; return api; },
+        order() { return api; },
+        range(from, to) { return api.limit().then(result => ({ ...result, data: result.data.slice(from, to + 1) })); },
         limit() {
           let data = rows;
           if (q.ilike) data = data.filter(row => ilike(row[q.ilike.field], q.ilike.pattern));
@@ -111,4 +113,12 @@ test('findOrderIdsMatchingQuery matches name, phone, AWB, and order number', asy
   assert.deepEqual(await findOrderIdsMatchingQuery(supabase, '8904123456'), ['o1']);
   assert.deepEqual(await findOrderIdsMatchingQuery(supabase, 'DL345832435XB'), ['o1']);
   assert.deepEqual(await findOrderIdsMatchingQuery(supabase, '10577'), ['o1']);
+});
+
+test('complete order-page search reads every match beyond the database default row cap', async () => {
+  const orders = Array.from({ length: 1655 }, (_, index) => ({ id: `order-${index}`, order_number: `11${String(index).padStart(4, '0')}` }));
+  const ids = await findOrderIdsMatchingQuery(mockSupabase({ orders }), '11', { all: true });
+  assert.equal(ids.length, 1655);
+  assert.equal(new Set(ids).size, 1655);
+  assert.ok(ids.includes('order-1654'));
 });

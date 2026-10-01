@@ -51,7 +51,7 @@ Existing legacy routes remain in `src/server.js` and can be run with `npm run le
 Pages:
 
 - `/`: dashboard
-- `/orders`: search, filters, manual creation
+- `/orders`: all orders through stable 50-row pagination, search and source/status filters, products and payment/fulfillment/shipment details, full shipping and billing addresses, buyer GSTIN/tax ID, recorded tax and item HSN, invoice links, manual creation. Missing source fields are explicitly marked as not provided. Operator-edited fields take precedence over raw source fallbacks.
 - `/orders/[id]`: editable order, timeline, packing, shipment, Chatwoot actions
 - `/packing`: packing queue
 - `/shipments`: shipment booking queue
