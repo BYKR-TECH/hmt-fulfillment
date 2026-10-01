@@ -47,6 +47,8 @@ async function main() {
   for (const { broken, counterpart } of plan) {
     await db.patch('orders', `id=eq.${counterpart.id}`, {
       source: 'merged', woo_order_id: null, external_order_id: broken.id,
+      status: 'cancelled', internal_status: 'cancelled', payment_status: 'not_set',
+      automation_hold: true, automation_hold_reason: 'Merged duplicate order',
       updated_at: new Date().toISOString()
     });
     try {
@@ -61,7 +63,10 @@ async function main() {
     } catch (error) {
       await db.patch('orders', `id=eq.${counterpart.id}`, {
         source: counterpart.source, woo_order_id: counterpart.woo_order_id,
-        external_order_id: counterpart.external_order_id
+        external_order_id: counterpart.external_order_id,
+        status: counterpart.status, internal_status: counterpart.internal_status,
+        payment_status: counterpart.payment_status, automation_hold: counterpart.automation_hold,
+        automation_hold_reason: counterpart.automation_hold_reason
       });
       throw error;
     }
