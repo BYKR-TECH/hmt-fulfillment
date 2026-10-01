@@ -2,9 +2,11 @@ import { getCourierAdapter } from './couriers/index.js';
 import { findShipmentByOrderId, updateOrderWixFulfillment, upsertShipment, upsertWixOrder, upsertAmazonOrder, upsertWooCommerceOrder, findOrderById } from './store.js';
 import { syncShipmentTrackingToWix } from './wixShipmentSync.js';
 import { writeWooShipmentOnBooked } from './wooShipmentSync.js';
+import { isWooCommerceRawOrder } from './wooOrderShape.js';
 import { fetchWixOrder } from './wix.js';
 
 export async function bookWixOrder(order, config, metadata = {}) {
+  if (isWooCommerceRawOrder(order)) return bookWooCommerceOrder(order, config, metadata);
   const orderId = order?.id || order?.number;
   if (!orderId) throw new Error('Order is missing id/number.');
 

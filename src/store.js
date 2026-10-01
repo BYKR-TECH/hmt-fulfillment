@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { buildAudit, buildOrderShipmentSummary, normalizeShipmentRecord, normalizeWixOrder, normalizeAmazonOrder, normalizeWooCommerceOrder } from './fulfillment.js';
 import { getConfig } from './config.js';
 import { isSupabaseConfigured, SupabaseRestClient } from './supabase.js';
+import { isWooCommerceRawOrder } from './wooOrderShape.js';
 import { findMatchingShipment } from '../lib/crm/shipment-dedup.js';
 
 const STORE_PATH = join(process.cwd(), 'data', 'shipments.json');
@@ -84,7 +85,12 @@ export async function findOrderById(id) {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
   const rows = await selectOrdersWithSchemaFallback(supabase, `&id=eq.${encodeURIComponent(id)}`);
-  return rows[0] || null;
+  const row = rows[0];
+  if (row?.source === 'merged' && row.external_order_id && row.external_order_id !== id) {
+    const target = await selectOrdersWithSchemaFallback(supabase, `&id=eq.${encodeURIComponent(row.external_order_id)}&source=neq.merged`);
+    return target[0] || null;
+  }
+  return row || null;
 }
 
 export async function findShipmentById(id) {
@@ -161,6 +167,8 @@ export async function updateShipmentLabel(id, fields) {
 }
 
 export async function upsertWixOrder(order) {
+  // Legacy booking callers can send native Woo payloads through this entry point.
+  if (isWooCommerceRawOrder(order)) return (await upsertWooCommerceOrder(order))?.order || null;
   const supabase = getSupabaseClient();
   if (!supabase) return null;
   return upsertSupabaseWixOrder(supabase, order);
@@ -704,10 +712,10 @@ function orderSelectColumns({ includeBuyerCalls }) {
 
 async function selectOrdersWithSchemaFallback(supabase, querySuffix = '') {
   try {
-    return await supabase.select('orders', `${orderSelectColumns({ includeBuyerCalls: true })}${querySuffix}`);
+    return await supabase.select('orders', `${orderSelectColumns({ includeBuyerCalls: true })}${querySuffix}${querySuffix.includes('&id=eq.') ? '' : '&source=neq.merged'}`);
   } catch (error) {
     if (!isMissingBuyerCallSchemaError(error)) throw error;
-    const rows = await supabase.select('orders', `${orderSelectColumns({ includeBuyerCalls: false })}${querySuffix}`);
+    const rows = await supabase.select('orders', `${orderSelectColumns({ includeBuyerCalls: false })}${querySuffix}${querySuffix.includes('&id=eq.') ? '' : '&source=neq.merged'}`);
     return rows.map(order => ({
       ...order,
       buyer_call_status: 'pending',
