@@ -26,7 +26,7 @@ A completed build is activated by switching the `/home/saipi/wixdelhivery` symli
 - Installed updater: `/usr/local/lib/hmt-deploy/`
 - Updater units: `wixdelhivery-deploy.service` and `wixdelhivery-deploy.timer`
 
-The public repository and public workflow-run API are read without credentials. Production secrets stay on `saipi`. GitHub API failures or unavailable/failed CI block deployment and leave the current release in place. The updater itself and service definitions are installed infrastructure: changes to `deploy/` must also be installed through SSH after review; app source still comes exclusively from `main`.
+The canonical repository is `BYKR-TECH/hmt-fulfillment` (GitHub repository ID 1256114019, unchanged by the owner transfer). The CI gate fetches and validates this canonical repository identity. The public repository and public workflow-run API are read without credentials. Production secrets stay on `saipi`. GitHub API failures or unavailable/failed CI block deployment and leave the current release in place. The updater itself and service definitions are installed infrastructure: changes to `deploy/` must also be installed through SSH after review; app source still comes exclusively from `main`.
 
 ## Check a deployment
 

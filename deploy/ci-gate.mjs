@@ -1,8 +1,10 @@
 import { pathToFileURL } from 'node:url';
 
+export const DEPLOYMENT_REPOSITORY = 'BYKR-TECH/hmt-fulfillment';
+
 // Only a successful push-to-main run for this precise commit can release code.
 // PR checks and workflow_dispatch runs cannot authorize a production release.
-export function isValidatedMainCommit(payload, sha, repository = 'sai-preetham/hmt-fulfillment') {
+export function isValidatedMainCommit(payload, sha, repository = DEPLOYMENT_REPOSITORY) {
   const runs = (payload.workflow_runs || []).filter(run =>
     run.head_sha === sha && run.head_branch === 'main' && run.event === 'push' &&
     run.repository?.full_name === repository && run.path === '.github/workflows/ci.yml'
@@ -13,7 +15,7 @@ export function isValidatedMainCommit(payload, sha, repository = 'sai-preetham/h
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const sha = process.argv[2];
   if (!/^[0-9a-f]{40}$/.test(sha || '')) throw new Error('Expected a full commit SHA.');
-  const response = await fetch(`https://api.github.com/repos/sai-preetham/hmt-fulfillment/actions/workflows/ci.yml/runs?head_sha=${sha}&branch=main&event=push&per_page=20`, {
+  const response = await fetch(`https://api.github.com/repos/${DEPLOYMENT_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&branch=main&event=push&per_page=20`, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'hmt-main-deployer' },
     signal: AbortSignal.timeout(20000)
   });
