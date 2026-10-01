@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isValidatedMainCommit } from '../deploy/ci-gate.mjs';
+import { isValidatedMainCommit, DEPLOYMENT_REPOSITORY } from '../deploy/ci-gate.mjs';
 
 const sha = 'a'.repeat(40);
-const successfulRun = { head_sha: sha, head_branch: 'main', event: 'push', repository: { full_name: 'sai-preetham/hmt-fulfillment' }, path: '.github/workflows/ci.yml', run_number: 10, run_attempt: 1, status: 'completed', conclusion: 'success' };
+const successfulRun = { head_sha: sha, head_branch: 'main', event: 'push', repository: { full_name: DEPLOYMENT_REPOSITORY }, path: '.github/workflows/ci.yml', run_number: 10, run_attempt: 1, status: 'completed', conclusion: 'success' };
 
 test('deployment accepts only successful push-to-main CI for the exact release', () => {
   assert.equal(isValidatedMainCommit({ workflow_runs: [successfulRun] }, sha), true);
@@ -28,4 +28,11 @@ test('daily Discord reports are not retried because webhook posts are not idempo
   assert.doesNotMatch(orderService, /chatwoot\/daily-report/);
   assert.match(chatwootService, /\/api\/integrations\/chatwoot\/daily-report/);
   assert.doesNotMatch(chatwootService, /orders\/export/);
+});
+
+test('deployment uses the transferred canonical repository and rejects the former owner identity', () => {
+  assert.equal(DEPLOYMENT_REPOSITORY, 'BYKR-TECH/hmt-fulfillment');
+  assert.equal(isValidatedMainCommit({ workflow_runs: [{ ...successfulRun, repository: { full_name: 'sai-preetham/hmt-fulfillment' } }] }, sha), false);
+  const gate = readFileSync(new URL('../deploy/ci-gate.mjs', import.meta.url), 'utf8');
+  assert.ok(gate.includes('repos/${DEPLOYMENT_REPOSITORY}/actions/'));
 });

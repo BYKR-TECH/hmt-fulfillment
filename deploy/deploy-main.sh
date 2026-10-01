@@ -19,7 +19,7 @@ fi
 [[ -f "$shared/.env" ]] || { echo 'Shared production environment is missing.'; exit 1; }
 if [[ ! -d "$cache" ]]; then
   git init --bare "$cache"
-  git --git-dir="$cache" remote add origin https://github.com/sai-preetham/hmt-fulfillment.git
+  git --git-dir="$cache" remote add origin https://github.com/BYKR-TECH/hmt-fulfillment.git
 fi
 git --git-dir="$cache" fetch --quiet origin +refs/heads/main:refs/heads/main
 sha="$(git --git-dir="$cache" rev-parse refs/heads/main)"
