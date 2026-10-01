@@ -69,3 +69,23 @@ ssh saipi 'rm -f /home/saipi/wixdelhivery-shared/deploy-paused && sudo systemctl
 ```
 
 Database migrations are reviewed separately. The deployer never runs schema changes automatically. Include backward-compatible migration work and verification in a PR when a change requires it; never remove columns needed by the previous release during rollout.
+
+## Repair Woo orders misclassified by legacy Wix booking
+
+Deploy the Woo import routing fix before running this data-only repair. It keeps
+shipment-bearing order UUIDs, AWBs and operator history, restores Woo customer,
+address, payment and item data, and retains the second row as a `merged` alias.
+Merged aliases are hidden from order lists; existing detail and invoice links
+resolve to the preserved order. No orders are deleted and no carrier/Wix writes
+are performed.
+
+Run `node scripts/repair-misclassified-woo-orders.js` first to inspect the count.
+For application, stop the app briefly to prevent ingestion racing the identity
+transfer, then run the script with `--apply` and
+`--backup-dir=/home/saipi/wixdelhivery-shared/repair-backups/<unique-run>`.
+Backups contain customer data: keep them outside Git, with restricted permissions.
+Restart the app even if repair fails. Each pair is backed up before any writes;
+ambiguous identities or counterparts with operational child records abort repair.
+An error after promotion can leave customer/item resync incomplete: inspect the
+saved pair and resync the preserved Woo order before retrying or rolling back.
+Do not revert app alias support while merged records remain in the database.
