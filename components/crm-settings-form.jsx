@@ -5,6 +5,20 @@ import { useState } from 'react';
 export function CrmSettingsForm({ settings, supabaseConfigured }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [activeSection, setActiveSection] = useState('packaging');
+  const [feedback, setFeedback] = useState('');
+  const sections = [['packaging', 'Packaging'], ['pickup', 'Pickup & tax'], ['export', 'International export'], ['automation', 'Automation']];
+
+  function revealInvalidField(event) {
+    event.preventDefault();
+    const field = event.currentTarget.querySelector('input:invalid, select:invalid, textarea:invalid');
+    if (!field) return;
+    const section = field.closest('section');
+    if (section) setActiveSection(section.id.replace('settings-', ''));
+    setFeedback('error');
+    setMessage(`Check the highlighted field: ${field.validationMessage}`);
+    requestAnimationFrame(() => field.focus());
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -17,18 +31,21 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
     for (const key of ['whatsapp_delivery_confirmation_enabled_at', 'whatsapp_abandoned_cart_enabled_at']) {
       if (body[key]) body[key] = new Date(body[key]).toISOString();
     }
-    const response = await fetch('/api/crm/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setMessage(data.error || 'Settings update failed.');
-      return;
+    try {
+      const response = await fetch('/api/crm/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json();
+      setFeedback(!response.ok ? 'error' : data.demo ? 'demo' : 'success');
+      setMessage(!response.ok ? data.error || 'Settings update failed. Please try again.' : data.demo ? 'Settings validated in demo mode. Configure Supabase to persist.' : 'All settings saved successfully.');
+    } catch {
+      setFeedback('error');
+      setMessage('Unable to save settings. Check your connection and try again.');
+    } finally {
+      setBusy(false);
     }
-    setMessage(data.demo ? 'Settings validated in demo mode. Configure Supabase to persist.' : 'Settings saved.');
   }
 
   const shipment = settings.shipment_defaults;
@@ -37,10 +54,13 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
   const automation = settings.automation_defaults;
 
   return (
-    <form onSubmit={submit} className="grid">
+    <form onSubmit={submit} className="settingsForm" onInvalidCapture={revealInvalidField} onChange={() => { setFeedback('unsaved'); setMessage('You have unsaved changes. Save applies to all sections.'); }}>
+      <nav className="pageTabs settingsTabs" aria-label="Settings sections">
+        {sections.map(([id, label]) => <button type="button" key={id} className={activeSection === id ? 'active' : ''} aria-pressed={activeSection === id} aria-controls={`settings-${id}`} onClick={() => setActiveSection(id)}>{label}</button>)}
+      </nav>
       {!supabaseConfigured ? <p className="muted">Supabase is not configured, so changes will validate but not persist.</p> : null}
 
-      <section className="panel">
+      <section className="panel" id="settings-packaging" hidden={activeSection !== 'packaging'}>
         <div className="panelHeader">
           <div>
             <h2>Default packaging</h2>
@@ -107,7 +127,7 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-pickup" hidden={activeSection !== 'pickup'}>
         <div className="panelHeader"><h2>Pickup and tax</h2></div>
         <div className="panelBody formGrid">
           <label>
@@ -153,7 +173,7 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-export" hidden={activeSection !== 'export'}>
         <div className="panelHeader"><h2>International export</h2></div>
         <div className="panelBody formGrid">
           <label>
@@ -183,12 +203,12 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="settings-automation" hidden={activeSection !== 'automation'}>
         <div className="panelHeader"><h2>Automation</h2></div>
         <div className="panelBody formGrid">
           <label className="checkItem">
             <input type="checkbox" name="wix_fulfillment_sync_enabled" defaultChecked={automation.wixFulfillmentSyncEnabled} />
-            <span>Update Wix fulfillment after booking</span>
+            <span>Update Wix fulfillment after pickup</span>
           </label>
           <label className="checkItem">
             <input type="checkbox" name="tracking_enabled" defaultChecked={automation.trackingEnabled} />
@@ -285,9 +305,9 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
         </div>
       </section>
 
-      <div className="toolbar">
-        <button type="submit" disabled={busy}>{busy ? 'Saving...' : 'Save settings'}</button>
-        {message ? <span className="muted">{message}</span> : null}
+      <div className="toolbar settingsSave">
+        <button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save all settings'}</button>
+        <span role="status" aria-live="polite" className={`saveFeedback ${feedback}`}>{busy ? 'Saving all sections…' : message || 'Changes apply to all sections.'}</span>
       </div>
     </form>
   );

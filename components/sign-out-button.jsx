@@ -16,8 +16,7 @@ export function SignOutButton() {
   return (
     <button
       onClick={handleSignOut}
-      className="navItem"
-      style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%', marginTop: 'auto' }}
+      className="navItem signOut"
       aria-label="Sign out"
     >
       <LogOut size={17} aria-hidden="true" />

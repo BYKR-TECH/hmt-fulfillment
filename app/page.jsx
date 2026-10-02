@@ -20,15 +20,15 @@ export default async function DashboardPage() {
 
   return (
     <AppShell>
-      <header className="pageHeader">
+      <header className="pageHeader dashboardHeader">
         <div>
           <p className="eyebrow">Today</p>
           <h1>Operations command center</h1>
           <p className="muted">A working queue for fulfillment, packing, courier tracking, installation follow-up, feedback, and support.</p>
         </div>
         <div className="toolbar">
-          <form className="filters" action="/orders" style={{ margin: 0 }}>
-            <input name="q" placeholder="Name, phone, order, AWB" />
+          <form className="dashboardSearch" action="/orders" role="search">
+            <input name="q" aria-label="Search orders" placeholder="Name, phone, order, AWB" />
             <button type="submit">Search</button>
           </form>
           <Link className="button secondary" href="/orders">All orders</Link>
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <section className="grid metrics">
+      <section className="grid metrics dashboardMetrics">
         {metrics.map(([label, value]) => (
           <article className="card metric" key={label}>
             <span>{label}</span>
@@ -45,7 +45,7 @@ export default async function DashboardPage() {
         ))}
       </section>
 
-      <section className="grid threeCol" style={{ marginTop: 14 }}>
+      <section className="grid threeCol sectionSpacing">
         <article className="card metric">
           <span>Average order to shipment</span>
           <strong>{summary.avgOrderToShipmentHours}h</strong>
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
         </article>
       </section>
 
-      <section className="panel" style={{ marginTop: 14 }}>
+      <section className="panel sectionSpacing">
         <div className="panelHeader">
           <h2>Recent orders</h2>
           <Link href="/orders" className="button secondary">View all</Link>
