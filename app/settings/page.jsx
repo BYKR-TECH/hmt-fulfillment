@@ -21,7 +21,7 @@ export default async function SettingsPage() {
         <article className="card metric"><span>Supabase anon key</span><strong>{supabase.anonKey ? 'Configured' : 'Missing'}</strong><small>NEXT_PUBLIC_SUPABASE_ANON_KEY</small></article>
         <article className="card metric"><span>Chatwoot</span><strong>{process.env.CHATWOOT_BASE_URL ? 'Configured' : 'Ready'}</strong><small>Use external conversations</small></article>
       </section>
-      <section className="grid twoCol" style={{ marginTop: 14 }}>
+      <section className="grid twoCol sectionSpacing">
         <div className="panel">
           <div className="panelHeader"><h2>Roles</h2></div>
           <div className="panelBody statusStack">{ROLES.map(role => <span className="pill neutral" key={role}>{role.replaceAll('_', ' ')}</span>)}</div>

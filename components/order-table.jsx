@@ -9,13 +9,13 @@ import { StatusPill } from './status-pill';
 
 export function OrderFilters({ query = '', status = '', source = '', action = '/orders', showStatus = true, showSource = true, hiddenFields = {} }) {
   return (
-    <form className="filters" action={action}>
+    <form className={`filters${!showStatus && !showSource ? ' searchOnly' : ''}`} action={action}>
       {Object.entries(hiddenFields).map(([name, value]) => <input type="hidden" name={name} value={value} key={name} />)}
       <label>
         <span>Search</span>
-        <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ left: 10, position: 'absolute', top: 11, color: '#667085' }} />
-          <input name="q" defaultValue={query} placeholder="Name, phone, order, AWB" style={{ paddingLeft: 32 }} />
+        <div className="searchField">
+          <Search size={16} aria-hidden="true" />
+          <input name="q" defaultValue={query} placeholder="Name, phone, order, AWB" />
         </div>
       </label>
       {showStatus ? (
@@ -39,10 +39,9 @@ export function OrderFilters({ query = '', status = '', source = '', action = '/
         </select>
       </label>
       ) : null}
-      <label>
-        <span>&nbsp;</span>
+      <div className="filterSubmit">
         <button type="submit">Apply</button>
-      </label>
+      </div>
     </form>
   );
 }
@@ -50,87 +49,52 @@ export function OrderFilters({ query = '', status = '', source = '', action = '/
 export function OrderTable({ orders, showQuickBook = false, showDetails = false }) {
   return (
     <div className="tableWrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Order</th>
-            <th>Customer</th>
-            <th>Product</th>
-            <th>Delivery option</th>
-            <th>Value</th>
-            <th>Fulfillment</th>
-            <th>Status</th>
-            <th>Tracking</th>
-            <th>Operator</th>
-            {showQuickBook ? <th>Quick book</th> : null}
-          </tr>
-        </thead>
+      <table className="opsTable orderTable">
+        <thead><tr><th>Order</th><th>Customer</th><th>Products / delivery</th><th>Value</th><th>Status / tracking</th>{showQuickBook ? <th>Book</th> : null}</tr></thead>
         <tbody>
-          {orders.map(order => (
-            <Fragment key={order.id}>
+          {orders.map(order => <Fragment key={order.id}>
             <tr>
-              <td>
-                <Link href={`/orders/${order.id}`}><strong>{order.order_number || order.external_order_id}</strong></Link>
-                <span className="subtle">{order.source.toUpperCase()} · {order.external_order_id}</span>
-                <span className="subtle">{order.order_date ? new Date(order.order_date).toLocaleDateString('en-IN') : ''}</span>
+              <td data-label="Order">
+                <Link className="tableLink" href={`/orders/${order.id}`}><strong>{order.order_number || order.external_order_id}</strong></Link>
+                <span className="subtle">{order.source.toUpperCase()} · {order.order_date ? new Date(order.order_date).toLocaleDateString('en-IN') : 'Date unavailable'}</span>
+                <span className="subtle">{order.assigned_operator || 'Unassigned'}{order.tags?.length ? ` · ${order.tags.join(', ')}` : ''}</span>
               </td>
-              <td>
+              <td data-label="Customer">
                 <strong>{order.customer_name || 'Customer name not provided'}</strong>
                 <span className="subtle">{order.phone}</span>
-                <span className="subtle">{order.email}</span>
                 <span className="subtle">{[order.city, order.state, order.pincode].filter(Boolean).join(', ')}</span>
+                <details className="rowDisclosure"><summary>Contact details</summary><span className="subtle">{order.email || 'Email not provided'}</span><span className="subtle">External ID: {order.external_order_id}</span></details>
               </td>
-              <td>
+              <td data-label="Products / delivery">
                 <OrderContents order={order} compact />
                 {order.bike_model ? <span className="subtle">{order.bike_model}</span> : null}
-              </td>
-              <td>
-                <strong>{order.selected_shipping_title || 'Not provided'}</strong>
+                <span className="subtle">{order.selected_shipping_title || 'Delivery option not provided'}</span>
                 {order.shipping_amount ? <span className="subtle">Shipping: {formatCurrency(order.shipping_amount, order.currency)}</span> : null}
               </td>
-              <td>
-                {formatCurrency(order.order_value, order.currency)}
+              <td data-label="Value" className="valueCell">
+                <strong>{formatCurrency(order.order_value, order.currency)}</strong>
                 <span className="subtle"><StatusPill value={order.payment_status} /></span>
               </td>
-              <td>
-                <div className="statusStack">
-                  <StatusPill value={order.fulfillment_status || 'not_fulfilled'} />
-                  {order.wix_fulfillment_status ? <StatusPill value={order.wix_fulfillment_status} /> : null}
+              <td data-label="Status / tracking">
+                <div className="statusStack"><StatusPill value={order.internal_status} />{order.shipment_status !== order.internal_status ? <StatusPill value={order.shipment_status || 'not_booked'} /> : null}</div>
+                <span className="subtle">{order.courier || 'No courier'}{order.awb_number ? ` · ${order.awb_number}` : ' · AWB pending'}</span>
+                <div className="tableActions">
+                  {order.tracking_url ? <a href={order.tracking_url} target="_blank" rel="noreferrer">Track shipment</a> : null}
+                  <Link href={`/orders/${order.id}`}>Manage order</Link>
                 </div>
-                {order.wix_fulfillment_error ? <span className="subtle dangerText">{order.wix_fulfillment_error}</span> : null}
+                <details className="rowDisclosure"><summary>Fulfillment & follow-up</summary>
+                  <div className="statusStack"><StatusPill value={order.fulfillment_status || 'not_fulfilled'} />{order.wix_fulfillment_status ? <StatusPill value={order.wix_fulfillment_status} /> : null}<StatusPill value={order.installation_status} /><StatusPill value={order.feedback_status} /></div>
+                  {order.wix_fulfillment_error ? <span className="subtle dangerText">{order.wix_fulfillment_error}</span> : null}
+                </details>
               </td>
-              <td>
-                <div className="statusStack">
-                  <StatusPill value={order.internal_status} />
-                  <StatusPill value={order.installation_status} />
-                  <StatusPill value={order.feedback_status} />
-                </div>
-              </td>
-              <td>
-                <div className="statusStack">
-                  <StatusPill value={order.shipment_status || 'not_booked'} />
-                  <span className="subtle">{order.courier ? `Courier: ${order.courier}` : 'No courier'}</span>
-                  <span className="subtle">{order.awb_number ? `AWB: ${order.awb_number}` : 'No AWB'}</span>
-                  {order.tracking_url
-                    ? <a className="subtle" href={order.tracking_url} target="_blank" rel="noreferrer">Open live tracking</a>
-                    : <span className="subtle">Tracking link unavailable</span>}
-                  <Link className="subtle" href={`/orders/${order.id}`}>Manage shipment</Link>
-                </div>
-              </td>
-              <td>
-                {order.assigned_operator || '-'}
-                <span className="subtle">{(order.tags || []).join(', ')}</span>
-              </td>
-              {showQuickBook ? <td><QuickBookButton order={order} /></td> : null}
+              {showQuickBook ? <td data-label="Book"><QuickBookButton order={order} /></td> : null}
             </tr>
-            {showDetails ? <OrderDetailsRow order={order} colSpan={showQuickBook ? 10 : 9} /> : null}
-            </Fragment>
-          ))}
-          {!orders.length && (
-            <tr>
-              <td colSpan={showQuickBook ? 10 : 9} className="empty">No matching orders.</td>
-            </tr>
-          )}
+            {showDetails ? <OrderDetailsRow order={order} colSpan={showQuickBook ? 6 : 5} /> : null}
+          </Fragment>)}
+          {!orders.length && <tr><td colSpan={showQuickBook ? 6 : 5} className="empty">
+            <strong>No orders to show</strong><p>Try a broader search or clear your filters. New orders will appear here once synced or created.</p>
+            <Link className="button secondary" href="/orders">View all orders</Link>
+          </td></tr>}
         </tbody>
       </table>
     </div>
@@ -167,7 +131,7 @@ function OrderDetailsRow({ order, colSpan }) {
   return (
     <tr className="orderDetailsRow">
       <td colSpan={colSpan}>
-        <div className="orderDetailsGrid">
+        <details className="orderFullDetails"><summary>Addresses, amounts & tax details</summary><div className="orderDetailsGrid">
           <OrderAddress order={order} type="shipping" title="Shipping" />
           <OrderAddress order={order} type="billing" title="Billing" />
           <section className="orderTaxDetails">
@@ -184,7 +148,7 @@ function OrderDetailsRow({ order, colSpan }) {
             <Link href={`/api/crm/orders/${order.id}/invoice`} target="_blank">Open invoice</Link>
             <Link href={`/orders/${order.id}`}>Edit order details</Link>
           </section>
-        </div>
+        </div></details>
       </td>
     </tr>
   );
