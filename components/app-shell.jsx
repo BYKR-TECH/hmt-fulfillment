@@ -52,7 +52,7 @@ export async function AppShell({ children }) {
         </div>
         <nav className="navList" aria-label="CRM sections">
           {nav.filter(([href]) => { const needed = permissionForPath(href); return needed === 'admin' ? profile?.active && profile?.role === 'admin' : hasPermission(profile, needed); }).map(([href, label, Icon]) => (
-            <Link href={href} className="navItem" key={href}>
+            <Link href={href} prefetch={false} className="navItem" key={href}>
               <Icon size={17} aria-hidden="true" />
               <span>{label}</span>
             </Link>
