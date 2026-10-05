@@ -30,3 +30,40 @@ test('formats the daily Discord scorecard from paid and international orders', (
   assert.match(message, /Unfulfilled order : 7/);
   assert.equal(countUnfulfilledOrders([{ fulfillment_status: 'NOT_FULFILLED' }, { fulfillment_status: 'FULFILLED' }, { status: 'CANCELED' }]), 1);
 });
+
+
+test('converts mixed paid currencies to INR using the supplied fixed rates', () => {
+  const summary = summarizePreviousDayOrders([
+    { payment_status: 'PAID', currency: ' eur ', total_amount: '200' },
+    { payment_status: 'APPROVED', currency: 'INR', total_amount: 16000 },
+    { payment_status: 'UNPAID', currency: 'EUR', total_amount: 500 },
+    { status: 'CANCELED', payment_status: 'PAID', currency: 'EUR', total_amount: 500 }
+  ]);
+  assert.ok(Math.abs(summary.totalPaid - 38222.22222222222) < 0.000001);
+  assert.match(formatDiscordDailyReport({ ...summary, bounds: { date: '2026-10-04' }, unfulfilledCount: 0 }), /₹38,222.22 \(INR\)/);
+  assert.deepEqual(summary.unconvertedPaid, []);
+});
+
+test('supports USD, GBP, AUD and legacy INR without rounding each order', () => {
+  const summary = summarizePreviousDayOrders([
+    { payment_status: 'PAID', currency: 'USD', total_amount: 11 },
+    { payment_status: 'PAID', currency: 'GBP', total_amount: 8 },
+    { payment_status: 'PAID', currency: 'AUD', total_amount: 11 },
+    { payment_status: 'PAID', total_amount: 123 },
+    { payment_status: 'PAID', currency: 'EUR', total_amount: 0.01 },
+    { payment_status: 'PAID', currency: 'EUR', total_amount: 0.01 }
+  ]);
+  assert.ok(Math.abs(summary.totalPaid - (3123 + 0.02 / 0.009)) < 0.000001);
+});
+
+test('lists unsupported paid currencies separately instead of treating them as INR', () => {
+  const summary = summarizePreviousDayOrders([
+    { payment_status: 'PAID', currency: 'INR', total_amount: 100 },
+    { payment_status: 'PAID', currency: 'CAD', total_amount: 20 },
+    { payment_status: 'PAID', currency: 'CAD', total_amount: 30 },
+    { payment_status: 'UNPAID', currency: 'JPY', total_amount: 1000 }
+  ]);
+  assert.equal(summary.totalPaid, 100);
+  assert.deepEqual(summary.unconvertedPaid, [{ currency: 'CAD', amount: 50 }]);
+  assert.match(formatDiscordDailyReport({ ...summary, bounds: { date: '2026-10-04' }, unfulfilledCount: 0 }), /Excluded from INR total \(no conversion rate\): CAD: 50/);
+});
