@@ -41,5 +41,16 @@ test('returns not found instead of guessing an unknown shipment', async () => {
 });
 
 function fakeDb(data, error = null) {
-  return { from() { return { select() { return this; }, eq() { return this; }, order() { return this; }, limit() { return this; }, maybeSingle: async () => ({ data, error }) }; } };
+  return { from() { return { select() { return this; }, eq() { return this; }, ilike() { return this; }, order() { return this; }, limit() { return this; }, range: async () => ({ data: [], error }), maybeSingle: async () => ({ data, error }) }; } };
 }
+
+test('normalizes pasted and encoded FedEx spacing', () => {
+  assert.equal(normalizeTrackingId('8781%205855%201138'), '878158551138');
+});
+
+test('legacy spaced AWB lookup redirects to the stored carrier', async () => {
+  const db = fakeDb(null);
+  const original = db.from;
+  db.from = () => ({ ...original(), range: async () => ({ data: [{ waybill: '8781 5855 1138', courier_code: 'fedex' }] }) });
+  assert.equal((await resolveTrackingRedirect(db, '878158551138')).url, 'https://www.fedex.com/fedextrack/?trknbr=878158551138');
+});
