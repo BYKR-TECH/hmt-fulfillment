@@ -281,6 +281,8 @@ curl -X POST http://localhost:3000/api/book-manual \
 
 The daily job reads the Wix orders already synced into Supabase. It replaces two tabs in the configured spreadsheet: `All Orders` (one row per order item) and `Sourcing View` (active, non-cancelled quantity grouped by SKU). It posts the order digest and a Chatwoot tracker for the prior completed calendar day (00:00–24:00 in `Asia/Kolkata`) to Discord. The Chatwoot tracker includes conversations opened and resolved during the day, the current open/pending backlog, and open/pending counts per assignee (including unassigned conversations).
 
+The Discord paid-order total is converted to INR using fixed operations rates: 1 INR = 0.011 USD, 0.009 EUR, 0.008 GBP, or 0.011 AUD. Conversion divides the foreign amount by its rate before summing; EUR 200 + INR 16,000 displays INR 38,222.22. Missing currencies default to INR for legacy orders. Unsupported currencies are excluded from the INR total and listed separately in the report. These are fixed rates, not live exchange rates, and the report always displays INR.
+
 Create a Google Cloud service account with the Google Sheets API enabled, share the target spreadsheet with that service account's email as an Editor, then add these server-only values to `.env`:
 
 ```text
@@ -293,7 +295,6 @@ DISCORD_CHATWOOT_WEBHOOK_URL=https://discord.com/api/webhooks/...
 DISCORD_APPLICATION_PUBLIC_KEY=discord-application-public-key
 OPERATIONS_TIMEZONE=Asia/Kolkata
 DAILY_ORDER_GOAL=5
-ORDER_REPORT_CURRENCY=INR
 ```
 
 The order report uses `POST /api/integrations/orders/export` at 00:00 IST. The independent Chatwoot report uses `POST /api/integrations/chatwoot/daily-report` at 00:02 IST. A failure in either service cannot retry or block the other. Enable both systemd timers after deployment:
