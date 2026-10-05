@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateShipmentPayload } from '../src/shipmentValidation.js';
+import { validateShipmentPayload, normalizeManualAwb } from '../src/shipmentValidation.js';
+
+test('manual AWB normalization and carrier mismatch rejection', () => {
+  assert.equal(normalizeManualAwb(' 8781 5855 1138 '), '878158551138');
+  assert.equal(validateShipmentPayload({ courier: 'fedex', awb_number: '8781 5855 1138' }, { manualAwb: true }).length, 0);
+  assert.ok(validateShipmentPayload({ courier: 'fedex', awb_number: 'DL346819205XB' }, { manualAwb: true }).length);
+  assert.equal(validateShipmentPayload({ courier: 'delhivery', awb_number: 'DL346819205XB' }, { manualAwb: true }).length, 0);
+  assert.ok(validateShipmentPayload({ courier: 'delhivery', awb_number: 'https://example.com/track' }, { manualAwb: true }).length);
+});
 
 test('manual AWB saving only requires an AWB, not courier-booking address fields', () => {
   assert.deepEqual(
