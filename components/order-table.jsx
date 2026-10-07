@@ -167,7 +167,9 @@ function OrderDetailsRow({ order, colSpan }) {
   return (
     <tr className="orderDetailsRow">
       <td colSpan={colSpan}>
-        <div className="orderDetailsGrid">
+        <details className="orderDetailsDropdown">
+          <summary>Shipping, billing &amp; tax details</summary>
+          <div className="orderDetailsGrid">
           <OrderAddress order={order} type="shipping" title="Shipping" />
           <OrderAddress order={order} type="billing" title="Billing" />
           <section className="orderTaxDetails">
@@ -184,7 +186,8 @@ function OrderDetailsRow({ order, colSpan }) {
             <Link href={`/api/crm/orders/${order.id}/invoice`} target="_blank">Open invoice</Link>
             <Link href={`/orders/${order.id}`}>Edit order details</Link>
           </section>
-        </div>
+          </div>
+        </details>
       </td>
     </tr>
   );
