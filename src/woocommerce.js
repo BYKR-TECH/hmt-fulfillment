@@ -15,8 +15,8 @@ export async function fetchWooCommerceOrders(config, options = {}) {
   const url = new URL(`${String(woo.baseUrl).replace(/\/$/, '')}/wp-json/wc/v3/orders`);
   url.searchParams.set('page', String(page));
   url.searchParams.set('per_page', String(perPage));
-  url.searchParams.set('orderby', 'modified');
-  url.searchParams.set('order', 'desc');
+  url.searchParams.set('orderby', options.orderby || 'modified');
+  url.searchParams.set('order', options.order || 'desc');
   if (options.modifiedAfter) url.searchParams.set('modified_after', toWooIso(options.modifiedAfter));
   if (options.after) url.searchParams.set('after', toWooIso(options.after));
   if (options.status) url.searchParams.set('status', options.status);
@@ -50,6 +50,22 @@ export async function fetchWooCommerceOrders(config, options = {}) {
 
 export function fetchWooCommerceCancelledOrders(config, options = {}) {
   return fetchWooCommerceOrders(config, { ...options, status: 'cancelled' });
+}
+
+export async function fetchWooCommerceOrderById(orderId, config, options = {}) {
+  const woo = config.woocommerce || {};
+  if (!woo.baseUrl) throw new Error('WOO_BASE_URL is required to pull a WooCommerce order.');
+  if (!woo.consumerKey || !woo.consumerSecret) {
+    throw new Error('WOO_CONSUMER_KEY and WOO_CONSUMER_SECRET are required to pull a WooCommerce order.');
+  }
+  const url = `${String(woo.baseUrl).replace(/\/$/, '')}/wp-json/wc/v3/orders/${encodeURIComponent(orderId)}`;
+  const response = await (options.fetchImpl || globalThis.fetch)(url, {
+    headers: { Accept: 'application/json', Authorization: wooBasicAuthHeader(woo.consumerKey, woo.consumerSecret) }
+  });
+  const body = await safeJson(response);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`WooCommerce order fetch failed (${response.status}): ${JSON.stringify(body)}`);
+  return body;
 }
 
 export function wooBasicAuthHeader(consumerKey, consumerSecret) {

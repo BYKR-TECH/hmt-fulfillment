@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { findRecoveryMatch, normalizePhone } from '../lib/crm/abandoned-cart-matching.js';
 import {
   fetchAllWooCancelledCheckouts,
+  isWooPayAbandonedOrder,
   normalizeWooCancelledCheckout
 } from '../lib/crm/abandoned-carts.js';
 
@@ -60,6 +61,8 @@ test('paginates cancelled WooCommerce orders and honors the configured cap', asy
       abandonedCheckoutSync: { enabled: true, pageSize: 2, maxPages: 2 }
     }
   }, {
+    fetchWooCommerceOrders: async () => ({ orders: [] }),
+    fetchWooCommerceOrderById: async () => null,
     fetchWooCommerceCancelledOrders: async (_config, pageOptions) => {
       calls.push(pageOptions);
       return { orders: [{ id: pageOptions.page }], hasMore: true };
@@ -68,6 +71,25 @@ test('paginates cancelled WooCommerce orders and honors the configured cap', asy
   assert.deepEqual(calls, [{ page: 1, perPage: 2 }, { page: 2, perPage: 2 }]);
   assert.equal(result.items.length, 2);
   assert.equal(result.stoppedByMaxPages, true);
+});
+
+test('discovers cancelled PAY orders omitted from the Woo collection endpoint', async () => {
+  const result = await fetchAllWooCancelledCheckouts({
+    woocommerce: {
+      baseUrl: 'https://shop.example', consumerKey: 'ck', consumerSecret: 'cs',
+      abandonedCheckoutSync: { enabled: true, pageSize: 10, maxPages: 1, initialIdLookback: 10, forwardIdProbe: 2, scanConcurrency: 3 }
+    }
+  }, {
+    fetchWooCommerceCancelledOrders: async () => ({ orders: [{ id: 8, number: '8', status: 'cancelled' }], hasMore: false }),
+    fetchWooCommerceOrders: async () => ({ orders: [{ id: 10, number: '10', status: 'completed' }] }),
+    fetchWooCommerceOrderById: async id => id === 9
+      ? { id: 9, number: 'PAY-9', status: 'cancelled' }
+      : null
+  });
+  assert.deepEqual(result.items.map(order => order.id).sort((a, b) => a - b), [8, 9]);
+  assert.equal(isWooPayAbandonedOrder({ number: 'PAY-9', status: 'cancelled' }), true);
+  assert.equal(isWooPayAbandonedOrder({ number: 'PAY-9', status: 'completed' }), false);
+  assert.equal(isWooPayAbandonedOrder({ number: '9', status: 'cancelled' }), false);
 });
 
 test('matches a later purchase from the same WooCommerce contact as recovered', () => {
