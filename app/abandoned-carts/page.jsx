@@ -11,7 +11,7 @@ export default async function AbandonedCartsPage({ searchParams }) {
   const leads = filterLeads(allLeads, filters || {});
   const dueLeads = allLeads.filter(lead => isDue(lead));
   return <AppShell>
-    <header className="pageHeader"><div><p className="eyebrow">Lead management</p><h1>Abandoned carts</h1><p className="muted">A shared recovery queue for Wix shoppers.</p></div><SyncCarts /></header>
+    <header className="pageHeader"><div><p className="eyebrow">Lead management</p><h1>Abandoned carts</h1><p className="muted">A shared recovery queue for Wix and WooCommerce shoppers.</p></div><SyncCarts /></header>
     {dueLeads.length ? <Link className="followUpAlert" href="/abandoned-carts?due=due"><strong>{dueLeads.length} follow-up{dueLeads.length === 1 ? '' : 's'} due</strong><span>Open the due queue →</span></Link> : null}
     <section className="panel"><div className="panelBody"><form className="leadFilters" action="/abandoned-carts">
       <input name="q" defaultValue={filters?.q || ''} placeholder="Search name, email, phone, or cart item" />
@@ -20,9 +20,9 @@ export default async function AbandonedCartsPage({ searchParams }) {
       <select name="due" defaultValue={filters?.due || ''}><option value="">All follow-ups</option><option value="due">Follow-up due</option><option value="scheduled">Follow-up scheduled</option></select>
       <button className="secondary">Filter</button><Link className="button secondary" href="/abandoned-carts">Clear</Link>
     </form></div></section>
-    <section className="panel" style={{ marginTop: 18 }}><div className="panelHeader"><h2>{leads.length} lead{leads.length === 1 ? '' : 's'}</h2></div><div className="tableWrap"><table className="leadQueue"><thead><tr><th>Customer</th><th>Cart</th><th>Lead stage</th><th>Abandoned</th><th>Cart updated</th><th>Last contact</th><th>Next follow-up</th><th>Recovery</th></tr></thead><tbody>
-      {leads.map(lead => <tr key={lead.id}><td><Link href={`/abandoned-carts/${lead.id}`}><strong>{lead.customer_name || 'Unknown shopper'}</strong></Link><span className="subtle">{lead.phone || '-'}<br />{lead.email || '-'}</span></td><td><strong>{lead.currency || 'INR'} {lead.cart_value || 0}</strong><span className="subtle">{itemNames(lead.items) || '-'}</span></td><td><span className="pill neutral">{label(lead.lead_status || 'new')}</span></td><td>{formatDate(lead.wix_created_at)}</td><td>{formatDate(lead.wix_updated_at)}</td><td>{formatDate(lead.last_contacted_at)}</td><td>{formatDate(lead.next_follow_up_at)}</td><td>{lead.recovered_order_id ? <><span className="pill ok">Recovered</span><span className="subtle">{formatDate(lead.recovered_at)}</span></> : <span className="pill neutral">Open</span>}</td></tr>)}
-      {!leads.length ? <tr><td colSpan="8" className="empty">No leads match these filters.</td></tr> : null}
+    <section className="panel" style={{ marginTop: 18 }}><div className="panelHeader"><h2>{leads.length} lead{leads.length === 1 ? '' : 's'}</h2></div><div className="tableWrap"><table className="leadQueue"><thead><tr><th>Customer</th><th>Source</th><th>Cart</th><th>Lead stage</th><th>Abandoned</th><th>Cart updated</th><th>Last contact</th><th>Next follow-up</th><th>Recovery</th></tr></thead><tbody>
+      {leads.map(lead => <tr key={lead.id}><td><Link href={`/abandoned-carts/${lead.id}`}><strong>{lead.customer_name || 'Unknown shopper'}</strong></Link><span className="subtle">{lead.phone || '-'}<br />{lead.email || '-'}</span></td><td><span className="pill neutral">{lead.source === 'woocommerce' ? 'WooCommerce' : 'Wix'}</span></td><td><strong>{lead.currency || 'INR'} {lead.cart_value || 0}</strong><span className="subtle">{itemNames(lead.items) || '-'}</span></td><td><span className="pill neutral">{label(lead.lead_status || 'new')}</span></td><td>{formatDate(lead.wix_created_at)}</td><td>{formatDate(lead.wix_updated_at)}</td><td>{formatDate(lead.last_contacted_at)}</td><td>{formatDate(lead.next_follow_up_at)}</td><td>{lead.recovered_order_id ? <><span className="pill ok">Recovered</span><span className="subtle">{formatDate(lead.recovered_at)}</span></> : <span className="pill neutral">Open</span>}</td></tr>)}
+      {!leads.length ? <tr><td colSpan="9" className="empty">No leads match these filters.</td></tr> : null}
     </tbody></table></div></section>
   </AppShell>;
 }

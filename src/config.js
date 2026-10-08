@@ -53,6 +53,13 @@ export function getConfig() {
         pageSize: clamp(Number(process.env.WOO_ORDER_SYNC_PAGE_SIZE || 25), 1, 100),
         maxPages: clamp(Number(process.env.WOO_ORDER_SYNC_MAX_PAGES || 3), 1, 20)
       },
+      abandonedCheckoutSync: {
+        enabled: process.env.WOO_ABANDONED_CHECKOUT_SYNC_ENABLED
+          ? process.env.WOO_ABANDONED_CHECKOUT_SYNC_ENABLED === 'true'
+          : process.env.WOO_ORDER_SYNC_ENABLED === 'true',
+        pageSize: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_SYNC_PAGE_SIZE || 50), 1, 100),
+        maxPages: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_SYNC_MAX_PAGES || 10), 1, 100)
+      },
       // Fail-closed: Ops → Woo shipment meta write-back off unless explicitly enabled.
       shipmentWriteback: {
         enabled: process.env.WOO_SHIPMENT_WRITEBACK_ENABLED === 'true'
