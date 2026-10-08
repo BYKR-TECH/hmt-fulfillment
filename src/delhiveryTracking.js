@@ -10,6 +10,7 @@
 
 import { isSupabaseConfigured } from './supabase.js';
 import {
+  clearShipmentOpsStatusHold,
   listActiveShipmentWaybills,
   saveTrackingEvents,
   updateShipmentTracking
@@ -29,6 +30,7 @@ import {
   getFedexLiveStatus,
   normalizeFedexStatus
 } from './fedexTracking.js';
+import { shouldBlockTrackingAdvance } from '../lib/crm/status-transitions.js';
 
 // ---------------------------------------------------------------------------
 // Delhivery tracking API
@@ -315,12 +317,15 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
       state.lastEvents += savedEvents;
 
       // Update shipment status only if it changed and is a progression
-      if (liveStatus && shouldUpdateStatus(shipment.status, liveStatus)) {
+      if (liveStatus && shouldUpdateStatus(shipment.status, liveStatus, shipment)) {
         await updateShipmentTracking(shipment.id, {
           status: liveStatus,
           location: location || null,
           lastEventAt: new Date().toISOString()
         });
+        if (shipment.carrier_response?.ops_status_hold?.active) {
+          await clearOpsStatusHold(shipment.id, shipment.carrier_response, liveStatus);
+        }
         state.lastUpdated += 1;
         logger.log?.(
           `[tracking] ${courierCode} AWB ${shipment.waybill}: ${shipment.status} → ${liveStatus}${location ? ` (${location})` : ''}`
@@ -417,7 +422,7 @@ export async function reconcileShipmentTrackingNow(shipment, config, options = {
   const liveStatus = normalizeCourierStatus(courierCode, getCourierLiveStatus(courierCode, pkg));
   const events = extractCourierTrackingEvents(courierCode, pkg);
   if (shipment.id && events.length) await saveTrackingEvents(shipment.id, events);
-  const changed = Boolean(liveStatus && shouldUpdateStatus(shipment.status, liveStatus));
+  const changed = Boolean(liveStatus && shouldUpdateStatus(shipment.status, liveStatus, shipment));
   const updatedShipment = {
     ...shipment,
     status: changed ? liveStatus : shipment.status,
@@ -473,10 +478,22 @@ function extractCourierTrackingEvents(courierCode, pkg) {
   return extractTrackingEvents(pkg);
 }
 
-function shouldUpdateStatus(current, next) {
+
+async function clearOpsStatusHold(shipmentId, carrierResponse, liveStatus) {
+  try {
+    await clearShipmentOpsStatusHold(shipmentId, carrierResponse, liveStatus);
+  } catch (error) {
+    console.error(`[tracking] could not clear ops_status_hold for ${shipmentId}: ${error.message}`);
+  }
+}
+
+export function shouldUpdateStatus(current, next, shipment = null) {
   if (!next || current === next) return false;
   // Terminal states — don't overwrite
   if (['delivered', 'rto', 'failed', 'cancelled'].includes(current)) return false;
+  // Operator undo hold: do not re-apply the same (or earlier) carrier status
+  // until the courier reports genuine further progress.
+  if (shipment && shouldBlockTrackingAdvance(shipment, next)) return false;
   const currentRank = STATUS_ORDER.indexOf(current);
   const nextRank = STATUS_ORDER.indexOf(next);
   // Allow update if next is further along, or if next is a special terminal state

@@ -8,6 +8,7 @@ import { ShipmentForm } from '@/components/shipment-form';
 import { ShipmentActions } from '@/components/shipment-actions';
 import { ShippingLabelUpload } from '@/components/shipping-label-upload';
 import { StatusPill } from '@/components/status-pill';
+import { StatusUndoButton } from '@/components/status-undo-button';
 import { COMMUNICATION_TYPES } from '@/lib/crm/constants';
 import { formatCurrency, getOrder, shipmentFailureReason } from '@/lib/crm/data';
 import { getCrmSettings } from '@/lib/crm/data-settings';
@@ -334,7 +335,7 @@ export default async function OrderDetailPage({ params, searchParams }) {
           </section>
 
           <section className="panel">
-            <div className="panelHeader"><h2>Timeline</h2></div>
+            <div className="panelHeader"><h2>Timeline</h2><StatusUndoButton orderId={order.id} /></div>
             <div className="panelBody timeline">
               {detail.timeline.map(item => (
                 <div className="timelineItem" key={item.id}>

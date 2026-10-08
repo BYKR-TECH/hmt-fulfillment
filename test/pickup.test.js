@@ -71,6 +71,18 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
       isDirectCourierBookableSource: () => true
     },
     './shipment-cancellation.js': {},
+    './status-undo.js': {
+      detectOrderBackwardFields: () => [],
+      pickOrderSnapshot: row => row || {},
+      pickShipmentSnapshot: row => row || null,
+      recordStatusChange: async () => ({ ok: true }),
+      undoLastStatusChange: async () => ({ ok: false })
+    },
+    './status-transitions.js': {
+      isBackwardTransition: () => false,
+      assertStatusTransitionAllowed: () => ({ ok: true }),
+      shouldBlockTrackingAdvance: () => false
+    },
     '@/lib/supabase/server': { createServiceClient: () => client },
     './order-search': {}, '@/src/shipmentValidation.js': {}, './seed': {},
     '@/src/store.js': { findOrderById: async () => order },

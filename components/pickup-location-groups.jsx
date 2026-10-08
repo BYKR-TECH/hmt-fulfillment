@@ -245,11 +245,17 @@ function PickupShipmentRow({ shipment, showMarkPickup = false, onDone }) {
   const badge = wixBadge(shipment);
 
   async function markPickedUp() {
+    const ok = window.confirm(
+      `Mark AWB ${shipment.waybill} as picked up?\n\nThis will:\n• Update Ops shipment status to picked up\n• Fulfill tracking on Wix (if linked)\n• Write Woo shipment meta (if enabled)\n• Send the customer WhatsApp shipment confirmation (once per AWB)\n\nOnly continue after the courier has actually collected the package.`
+    );
+    if (!ok) return;
     setBusy(true);
     setMessage('');
     try {
       const response = await fetch(`/api/crm/orders/${shipment.order_id}/shipments/${shipment.id}/mark-picked-up`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmCustomerMessage: true })
       });
       const result = await response.json().catch(() => ({}));
       setMessage(result.message || result.error || 'Mark picked up finished.');
