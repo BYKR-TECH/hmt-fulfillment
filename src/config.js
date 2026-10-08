@@ -58,7 +58,11 @@ export function getConfig() {
           ? process.env.WOO_ABANDONED_CHECKOUT_SYNC_ENABLED === 'true'
           : process.env.WOO_ORDER_SYNC_ENABLED === 'true',
         pageSize: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_SYNC_PAGE_SIZE || 50), 1, 100),
-        maxPages: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_SYNC_MAX_PAGES || 10), 1, 100)
+        maxPages: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_SYNC_MAX_PAGES || 10), 1, 100),
+        initialIdLookback: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_INITIAL_ID_LOOKBACK || 1000), 100, 5000),
+        rescanIdLookback: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_RESCAN_ID_LOOKBACK || 200), 25, 1000),
+        forwardIdProbe: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_FORWARD_ID_PROBE || 50), 10, 250),
+        scanConcurrency: clamp(Number(process.env.WOO_ABANDONED_CHECKOUT_SCAN_CONCURRENCY || 20), 1, 50)
       },
       // Fail-closed: Ops → Woo shipment meta write-back off unless explicitly enabled.
       shipmentWriteback: {

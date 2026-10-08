@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  fetchWooCommerceOrderById,
   fetchWooCommerceOrders,
   nextWooWatermarkFromOrders,
   resolveWooModifiedAfterWatermark,
@@ -75,6 +76,18 @@ test('fetchWooCommerceOrders pages with modified_after and Basic auth', async ()
   assert.match(calls[0].url, /modified_after=/);
   assert.match(calls[0].url, /orderby=modified/);
   assert.equal(calls[0].headers.Authorization, wooBasicAuthHeader('ck_test', 'cs_test'));
+});
+
+test('fetchWooCommerceOrderById reads PAY orders and treats missing IDs as gaps', async () => {
+  const config = { woocommerce: { baseUrl: 'https://shop.example', consumerKey: 'ck', consumerSecret: 'cs' } };
+  const order = await fetchWooCommerceOrderById(773, config, {
+    fetchImpl: async () => new Response(JSON.stringify({ id: 773, number: 'PAY-773', status: 'cancelled' }), { status: 200 })
+  });
+  assert.equal(order.number, 'PAY-773');
+  const missing = await fetchWooCommerceOrderById(774, config, {
+    fetchImpl: async () => new Response(JSON.stringify({ code: 'woocommerce_rest_shop_order_invalid_id' }), { status: 404 })
+  });
+  assert.equal(missing, null);
 });
 
 test('watermark helpers bound cold runs and advance from orders', () => {

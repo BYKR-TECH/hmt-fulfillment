@@ -16,6 +16,8 @@ WOO_ABANDONED_CHECKOUT_SYNC_PAGE_SIZE=50
 WOO_ABANDONED_CHECKOUT_SYNC_MAX_PAGES=10
 ```
 
+`PAY-*` checkout placeholders use WordPress's `jp_pay_order` type and are omitted from WooCommerce's collection endpoint. Ops discovers them through bounded, concurrent individual-order reads, performs a larger scan once after startup, and then rescans only recent IDs plus a small forward window.
+
 Apply `supabase/migrations/20261008071108_add_woocommerce_cancelled_abandoned_checkouts.sql` before deploying the application change. App deployment does not apply database migrations.
 
 ## Enable on saipi (shared `.env`)
