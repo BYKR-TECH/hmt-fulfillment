@@ -4,6 +4,20 @@ Ops-native pull of WooCommerce orders into Hold My Throttle Ops CRM, mirroring W
 
 Push ingest (`POST /api/integrations/woocommerce/orders` with `x-ops-woo-secret`) remains available for optional webhooks.
 
+## Cancelled checkout recovery
+
+The abandoned-carts sync also pulls WooCommerce orders whose status is `cancelled` into the shared Ops recovery queue. A later paid or approved order from the same contact marks the checkout recovered, using normalized email first and phone as the fallback. The purchase must be newer than the cancelled checkout.
+
+This follows `WOO_ORDER_SYNC_ENABLED` by default. Override it independently when needed:
+
+```text
+WOO_ABANDONED_CHECKOUT_SYNC_ENABLED=true
+WOO_ABANDONED_CHECKOUT_SYNC_PAGE_SIZE=50
+WOO_ABANDONED_CHECKOUT_SYNC_MAX_PAGES=10
+```
+
+Apply `supabase/migrations/20261008071108_add_woocommerce_cancelled_abandoned_checkouts.sql` before deploying the application change. App deployment does not apply database migrations.
+
 ## Enable on saipi (shared `.env`)
 
 Fail-closed: sync does nothing unless explicitly enabled.
@@ -61,4 +75,3 @@ Apply on Ops Supabase if not already applied.
 ## Related: Ops → Woo shipment write-back
 
 After AWB book / mark picked up, Ops can push tracking meta to Woo (feature-flagged). See `docs/WOOCOMMERCE_WRITEBACK.md`.
-
