@@ -324,7 +324,7 @@ export async function listActiveShipmentWaybills() {
   for (let offset = 0; ; offset += pageSize) {
     const page = await supabase.select(
       'shipments',
-      'select=id,waybill,order_id,status,courier_code,tracking_url,updated_at' +
+      'select=id,waybill,order_id,status,courier_code,tracking_url,updated_at,carrier_response' +
         '&waybill=not.is.null' +
         '&status=not.in.(delivered,rto,cancelled,failed)' +
         '&order=updated_at.asc,id.asc' +
@@ -393,6 +393,25 @@ export async function updateShipmentTracking(shipmentId, { status, lastEventAt }
   }
 
   return shipment;
+}
+
+export async function clearShipmentOpsStatusHold(shipmentId, carrierResponse = {}, liveStatus = '') {
+  const supabase = getSupabaseClient();
+  if (!supabase || !shipmentId) return null;
+  const hold = carrierResponse?.ops_status_hold;
+  if (!hold?.active) return null;
+  return supabase.patch('shipments', `id=eq.${encodeURIComponent(shipmentId)}`, {
+    carrier_response: {
+      ...carrierResponse,
+      ops_status_hold: {
+        ...hold,
+        active: false,
+        cleared_at: new Date().toISOString(),
+        cleared_by: liveStatus ? `tracking:${liveStatus}` : 'tracking'
+      }
+    },
+    updated_at: new Date().toISOString()
+  });
 }
 
 async function listSupabaseShipments(supabase) {
