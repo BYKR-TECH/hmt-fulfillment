@@ -17,7 +17,7 @@ export default async function GstInvoicesPage({ searchParams }) {
   const csvHref = `/api/crm/gst-invoices?start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`;
 
   return <AppShell>
-    <header className="pageHeader"><div><p className="eyebrow">Reports</p><h1>Sales and GST reports</h1><p className="muted">Select a date range to prepare GST filing data and reconcile taxable value, GST, and total order value.</p></div></header>
+    <header className="pageHeader"><div><p className="eyebrow">Reports</p><h1>Sales and GST reports</h1><p className="muted">Select a date range to prepare GST filing data and reconcile taxable value, GST, and total order value for fulfilled orders.</p></div></header>
     <section className="panel"><div className="panelBody">
       <form className="filters" action="/gst-invoices">
         <label><span>Start date</span><input name="start" type="date" defaultValue={startDate} required /></label>
@@ -25,7 +25,7 @@ export default async function GstInvoicesPage({ searchParams }) {
         <label><span>&nbsp;</span><button type="submit">Generate report</button></label>
         <label><span>&nbsp;</span><a className="button secondary" href={csvHref}>Download CSV</a></label>
       </form>
-      {error ? <p className="errorText">{error}</p> : <p className="muted">{report.orders} order{report.orders === 1 ? '' : 's'} from {displayDate(startDate)} to {displayDate(endDate)}. Cancelled, unpaid, and fully refunded orders are excluded.</p>}
+      {error ? <p className="errorText">{error}</p> : <p className="muted">{report.orders} fulfilled order{report.orders === 1 ? '' : 's'} from {displayDate(startDate)} to {displayDate(endDate)}. Cancelled, unfulfilled, unpaid, and fully refunded orders are excluded.</p>}
     </div></section>
 
     {!error ? <>

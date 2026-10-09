@@ -29,11 +29,12 @@ test('calculates inclusive 18 percent GST only when a domestic order lacks a sto
 });
 
 test('includes only paid or approved orders that are not cancelled', () => {
-  assert.equal(shouldIncludeGstInvoice({ payment_status: 'paid', status: 'completed' }), true);
-  assert.equal(shouldIncludeGstInvoice({ payment_status: 'approved', status: 'processing' }), true);
-  assert.equal(shouldIncludeGstInvoice({ payment_status: 'partially_refunded', status: 'approved' }), true);
-  assert.equal(shouldIncludeGstInvoice({ payment_status: 'pending', status: 'completed' }), false);
-  assert.equal(shouldIncludeGstInvoice({ payment_status: 'paid', status: 'cancelled' }), false);
+  assert.equal(shouldIncludeGstInvoice({ payment_status: 'paid', fulfillment_status: 'FULFILLED', status: 'completed' }), true);
+  assert.equal(shouldIncludeGstInvoice({ payment_status: 'approved', fulfillment_status: 'fulfilled', status: 'processing' }), true);
+  assert.equal(shouldIncludeGstInvoice({ payment_status: 'partially_refunded', fulfillment_status: 'FULFILLED', status: 'approved' }), true);
+  assert.equal(shouldIncludeGstInvoice({ payment_status: 'paid', fulfillment_status: 'NOT_FULFILLED', status: 'completed' }), false);
+  assert.equal(shouldIncludeGstInvoice({ payment_status: 'pending', fulfillment_status: 'FULFILLED', status: 'completed' }), false);
+  assert.equal(shouldIncludeGstInvoice({ payment_status: 'paid', fulfillment_status: 'FULFILLED', status: 'cancelled' }), false);
 });
 
 test('uses the net retained amount for a partially refunded order', () => {
