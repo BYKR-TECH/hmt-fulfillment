@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createShipmentLabel } from '../src/labels.js';
+import { createShipmentLabel, fetchShipmentLabelFile } from '../src/labels.js';
 import { buildDelhiveryShippingLabelPdf } from '../lib/crm/shipping-label-pdf.js';
 
 test('renders the AWB as a vector Code 128 barcode rather than a carrier image', () => {
@@ -59,4 +59,29 @@ function config() {
       labelUrl: 'https://labels.example/create'
     }
   };
+}
+
+for (const operation of [createShipmentLabel, fetchShipmentLabelFile]) {
+  test(`${operation.name} rejects an empty carrier response instead of returning a blank label`, async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ packages: [], packages_found: 0 }), {
+      headers: { 'content-type': 'application/json' }
+    });
+    try {
+      await assert.rejects(() => operation({ id: 'shipment-1', waybill: 'DL347044725XB' }, config()), /no shipping label.*DL347044725XB.*Upload shipping label/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+  test(`${operation.name} rejects a label for another AWB`, async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ packages: [{ wbn: 'other-awb' }] }), {
+      headers: { 'content-type': 'application/json' }
+    });
+    try {
+      await assert.rejects(() => operation({ waybill: 'expected-awb' }, config()), /does not match AWB/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 }
