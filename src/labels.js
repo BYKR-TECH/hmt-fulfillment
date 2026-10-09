@@ -13,6 +13,7 @@ export async function createShipmentLabel(shipment, config) {
     throw new Error(`Delhivery label failed (${response.status}): ${JSON.stringify(errorPayload)}`);
   }
 
+  validateLabelPayload(payload, shipment.waybill);
   const labelUrl = extractLabelUrl(payload);
   const contentType = header(response, 'content-type') || '';
   const internalLabelUrl = shipment?.id ? `/api/crm/shipments/${shipment.id}/label-file` : '';
@@ -47,6 +48,7 @@ export async function fetchShipmentLabelFile(shipment, config) {
 
   if (contentType.includes('json')) {
     const payload = await safeJson(response);
+    validateLabelPayload(payload, shipment.waybill);
     const { buildDelhiveryShippingLabelPdf } = await import('../lib/crm/shipping-label-pdf.js');
     body = buildDelhiveryShippingLabelPdf(payload);
     finalContentType = 'application/pdf';
@@ -59,6 +61,17 @@ export async function fetchShipmentLabelFile(shipment, config) {
     contentType: finalContentType || 'application/pdf',
     filename: `delhivery-label-${shipment.waybill}.pdf`
   };
+}
+
+function validateLabelPayload(payload, waybill) {
+  if (!Array.isArray(payload.packages)) return;
+  if (!payload.packages.length) {
+    throw new Error(`Delhivery returned no shipping label for AWB ${waybill}. For international or manually booked shipments, upload the carrier-issued label using "Upload shipping label" on the order.`);
+  }
+  const packageAwb = payload.packages[0]?.wbn || payload.packages[0]?.waybill;
+  if (!packageAwb || String(packageAwb).trim() !== String(waybill).trim()) {
+    throw new Error(`Delhivery returned a label that does not match AWB ${waybill}.`);
+  }
 }
 
 function fetchDelhiveryLabel(shipment, config) {
