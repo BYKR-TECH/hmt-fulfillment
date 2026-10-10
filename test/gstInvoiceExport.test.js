@@ -5,12 +5,13 @@ import { buildGstInvoiceRow, dateRangeBounds, gstInvoiceCsv, monthBounds, should
 test('exports valid domestic B2B GSTIN and uses the stored GST amount', () => {
   const row = buildGstInvoiceRow({
     order_number: '10407', source_created_at: '2026-06-29T10:00:00.000Z', tax_amount: 2362.43, total_amount: 15487.03, currency: 'INR',
-    customers: { tax_id: '19GMSPM3198B1ZG' }, shipping_address: { country: 'IND' }, billing_address: { country: 'IND' }
+    customers: { tax_id: '19GMSPM3198B1ZG' }, shipping_address: { country: 'IND' }, billing_address: { state: 'West Bengal', country: 'IND' }
   });
   assert.equal(row.gst, '19GMSPM3198B1ZG');
   assert.equal(row.totalTax, 2362.43);
   assert.equal(row.taxableValue, 13124.6);
   assert.equal(row.gstTreatment, 'B2B');
+  assert.equal(row.billingState, 'West Bengal');
 });
 
 test('marks international invoices as LUT exports with no GST', () => {
@@ -21,6 +22,7 @@ test('marks international invoices as LUT exports with no GST', () => {
   assert.equal(row.gst, '');
   assert.equal(row.totalTax, 0);
   assert.equal(row.gstTreatment, 'LUT');
+  assert.equal(row.billingState, '');
 });
 
 test('calculates inclusive 18 percent GST only when a domestic order lacks a stored tax amount', () => {
@@ -53,8 +55,9 @@ test('uses B2C for invoices with no recorded destination', () => {
 });
 
 test('formats a CSV with the agreed sales and GST report columns', () => {
-  const csv = gstInvoiceCsv([buildGstInvoiceRow({ order_number: '10407', total_amount: 1180, shipping_address: { country: 'IND' } })]);
-  assert.match(csv, /^Order #,Order date,Customer,Delivery country,GSTIN,GST type,GST treatment,Value without tax,GST,Total with tax,Currency,Payment status\r\n/);
+  const csv = gstInvoiceCsv([buildGstInvoiceRow({ order_number: '10407', total_amount: 1180, shipping_address: { country: 'IND' }, billing_address: { state: 'Karnataka', country: 'IND' } })]);
+  assert.match(csv, /^Order #,Order date,Customer,Delivery country,Billing state,GSTIN,GST type,GST treatment,Value without tax,GST,Total with tax,Currency,Payment status\r\n/);
+  assert.match(csv, /Karnataka/);
   assert.match(csv, /B2C/);
   assert.deepEqual(monthBounds('2026-06'), { start: '2026-05-31T18:30:00.000Z', end: '2026-06-30T18:30:00.000Z' });
 });
