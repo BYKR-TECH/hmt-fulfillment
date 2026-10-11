@@ -21,8 +21,8 @@ Premium-only validation. Saving settings ends this exception.
 ## Defaults for the first save
 
 - Enabled: on; dry run: off. These match legacy booking being active.
-- Pickup: `SID vars` (displayed as Sis Vars), as specified for Delhivery One.
-  Existing source uses `Sis Vars`, not `SID vars`; the exact carrier account name
+- Pickup: `Sis Vars` (displayed as Sis Vars), as specified for Delhivery One.
+  Existing source uses `Sis Vars`, not `Sis Vars`; the exact carrier account name
   must be verified by the operator before enabling live booking. No lookup was made.
   HSR GDP / HSR BYKR require an explicit confirmation checkbox; server validation
   rejects these warehouses without `pickupExplicitlyChosen: true`.

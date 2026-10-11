@@ -21,7 +21,7 @@ function harness() {
   } });
   return { writes, save: exports.saveCrmSettings };
 }
-const payload = { auto_booking_enabled: 'on', auto_booking_pickup_location: 'SID vars', auto_booking_domestic_mode: 'express', auto_booking_international_courier: 'delhivery', auto_booking_international_mode: 'dlv_premium', auto_booking_weightGrams: '400', auto_booking_lengthCm: '23', auto_booking_widthCm: '14', auto_booking_heightCm: '6', auto_booking_sources: 'wix', auto_booking_require_paid: 'on', auto_booking_skip_hold: 'on', auto_booking_max_value: '' };
+const payload = { auto_booking_enabled: 'on', auto_booking_pickup_location: 'Sis Vars', auto_booking_domestic_mode: 'express', auto_booking_international_courier: 'delhivery', auto_booking_international_mode: 'dlv_premium', auto_booking_weightGrams: '400', auto_booking_lengthCm: '23', auto_booking_widthCm: '14', auto_booking_heightCm: '6', auto_booking_sources: 'wix', auto_booking_require_paid: 'on', auto_booking_skip_hold: 'on', auto_booking_max_value: '' };
 test('settings save stores typed auto-booking with server actor and timestamp', async () => {
   const h = harness(); const result = await h.save(payload, { id: 'operator-profile' });
   assert.equal(result.ok, true);

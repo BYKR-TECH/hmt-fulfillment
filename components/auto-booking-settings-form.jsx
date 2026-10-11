@@ -10,7 +10,7 @@ export function AutoBookingSettingsFields({ settings }) {
     <div className="panelBody formGrid">
       {check('enabled', 'Enable auto shipment booking', settings.enabled)}
       {check('dry_run', 'Dry run: log proposed bookings without creating shipments', settings.dryRun)}
-      <label><span>Pickup location</span><select name="auto_booking_pickup_location" value={pickup} onChange={event => setPickup(event.target.value)}><option value="SID vars">Sis Vars (SID vars)</option><option>HSR GDP</option><option>HSR BYKR</option></select></label>
+      <label><span>Pickup location</span><select name="auto_booking_pickup_location" value={pickup} onChange={event => setPickup(event.target.value)}><option value="Sis Vars">Sis Vars</option><option>HSR GDP</option><option>HSR BYKR</option></select></label>
       {pickup.startsWith('HSR') ? <><p className="muted full" role="alert">Warning: HSR is not the default warehouse. Confirm this pickup location explicitly.</p>{check('pickup_explicitly_chosen', 'I explicitly choose the selected HSR warehouse', settings.pickupExplicitlyChosen)}</> : null}
       <label><span>Domestic courier and service</span><select name="auto_booking_domestic_mode" defaultValue={settings.domestic.serviceMode}><option value="express">Delhivery Express</option><option value="surface">Delhivery Surface</option></select></label>
       <label><span>International courier</span><select name="auto_booking_international_courier" value={courier} onChange={event => setCourier(event.target.value)}><option value="delhivery">Delhivery Express</option><option value="fedex">FedEx</option></select></label>

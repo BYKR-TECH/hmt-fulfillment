@@ -6,13 +6,13 @@ import { mergeCrmSettings } from '../lib/crm/settings.js';
 const order = { id: 'order-1', source: 'wix', payment_status: 'PAID', internal_status: 'new', total_amount: 500, shipping_address: { country: 'US' } };
 const settings = value => validateAutoBookingSettings(value);
 
-test('missing row preserves legacy routing; first-save defaults select Premium and SID vars', () => {
+test('missing row preserves legacy routing; first-save defaults select Premium and Sis Vars', () => {
   assert.equal(selectAutomationLane(order).serviceCode, 'dlv_saver');
   assert.equal(selectAutomationLane({ ...order, selected_shipping_title: 'Express' }).lane, 'fedex_csv');
   assert.equal(selectAutomationLane({ ...order, shipping_address: { country: 'IN' } }).serviceCode, 'express');
   assert.deepEqual(mergeCrmSettings([]).auto_booking, DEFAULT_AUTO_BOOKING_SETTINGS);
   assert.equal(selectAutomationLane(order, settings()).internationalService, 'DLV Premium');
-  assert.equal(settings().pickupLocation, 'SID vars');
+  assert.equal(settings().pickupLocation, 'Sis Vars');
 });
 test('rejects Saver, mismatched services, implicit HSR and invalid values', () => {
   for (const serviceMode of ['dlv_saver', 'DLV Saver', 'express']) assert.throws(() => settings({ international: { serviceMode } }), /Premium/);
@@ -52,7 +52,7 @@ test('dry run records proposal and never calls booking or writes shipments/FedEx
     assert.equal(db.writes.length, 1);
     assert.equal(db.writes[0].table, 'automation_action_attempts');
     assert.equal(db.writes[0].row.payload.wouldBook, true);
-    assert.equal(db.writes[0].row.payload.pickupLocation, 'SID vars');
+    assert.equal(db.writes[0].row.payload.pickupLocation, 'Sis Vars');
     assert.equal(db.writes[0].row.attempts, 0);
   }
 });
@@ -85,7 +85,7 @@ test('manual booking uses CRM identity and address without Wix import or fulfill
   assert.equal(manualOrderForCarrier(manual).shippingInfo.logistics.shippingDestination.address.country, 'IN');
 });
 test('form produces validated typed auto-booking settings', () => {
-  const result = autoBookingSettingsFromForm({ auto_booking_enabled: 'on', auto_booking_pickup_location: 'SID vars', auto_booking_domestic_mode: 'surface', auto_booking_international_courier: 'fedex', auto_booking_international_mode: 'international_express', auto_booking_weightGrams: '500', auto_booking_lengthCm: '24', auto_booking_widthCm: '15', auto_booking_heightCm: '6', auto_booking_sources: 'wix, woocommerce', auto_booking_countries: 'in, us', auto_booking_require_paid: 'on', auto_booking_skip_hold: 'on', auto_booking_max_value: '', auto_booking_run_time: '09:00' });
+  const result = autoBookingSettingsFromForm({ auto_booking_enabled: 'on', auto_booking_pickup_location: 'Sis Vars', auto_booking_domestic_mode: 'surface', auto_booking_international_courier: 'fedex', auto_booking_international_mode: 'international_express', auto_booking_weightGrams: '500', auto_booking_lengthCm: '24', auto_booking_widthCm: '15', auto_booking_heightCm: '6', auto_booking_sources: 'wix, woocommerce', auto_booking_countries: 'in, us', auto_booking_require_paid: 'on', auto_booking_skip_hold: 'on', auto_booking_max_value: '', auto_booking_run_time: '09:00' });
   assert.equal(result.package.weightGrams, 500);
   assert.equal(result.dryRun, false);
   assert.deepEqual(result.allowedCountries, ['IN', 'US']);
@@ -100,4 +100,9 @@ test('disabled and unqualified orders do not enter booking', async () => {
     assert.equal(db.writes[0].table, 'orders');
     assert.equal(db.writes.length, 1);
   }
+});
+
+test('legacy SID vars pickup normalises to the Delhivery warehouse name Sis Vars', async () => {
+  const { validateAutoBookingSettings } = await import('../lib/crm/auto-booking-settings.js');
+  assert.equal(validateAutoBookingSettings({ pickupLocation: 'SID vars' }).pickupLocation, 'Sis Vars');
 });
