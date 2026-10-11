@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AutoBookingSettingsFields } from './auto-booking-settings-form';
 
 export function CrmSettingsForm({ settings, supabaseConfigured }) {
   const [message, setMessage] = useState('');
@@ -39,6 +40,8 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
   return (
     <form onSubmit={submit} className="grid">
       {!supabaseConfigured ? <p className="muted">Supabase is not configured, so changes will validate but not persist.</p> : null}
+
+      <AutoBookingSettingsFields settings={settings.auto_booking} />
 
       <section className="panel">
         <div className="panelHeader">
