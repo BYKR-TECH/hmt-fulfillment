@@ -33,7 +33,7 @@ export default async function OrderDetailPage({ params, searchParams }) {
     return true;
   });
   const shipments = [...(detail.shipments || [])].sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
-  const latestShipment = shipments[0] || null;
+  const latestShipment = [...shipments].filter(shipment => shipment.direction !== 'reverse').sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0))[0] || null;
   const shippingAddress = [
     order.shipping_name || order.customer_name,
     order.shipping_phone || order.phone,
@@ -50,8 +50,8 @@ export default async function OrderDetailPage({ params, searchParams }) {
     [order.billing_city, order.billing_state, order.billing_pincode].filter(Boolean).join(', '),
     order.billing_country
   ].filter(Boolean);
-  const trackingUrl = order.tracking_url || latestShipment?.tracking_url || latestShipment?.trackingUrl || '';
-  const awb = order.awb_number || latestShipment?.waybill || latestShipment?.awb_number || '';
+  const trackingUrl = order.tracking_url || '';
+  const awb = order.awb_number || '';
   const courier = order.courier || latestShipment?.courier_code || latestShipment?.courier || '';
   const labelUrl = order.label_url || latestShipment?.label_url || (latestShipment?.id ? `/api/crm/shipments/${latestShipment.id}/label-file` : '');
   const deliveryMode = deliveryModeDetails(order.delivery_method);
