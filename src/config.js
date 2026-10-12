@@ -204,6 +204,8 @@ export function getConfig() {
 }
 
 function loadEnvFile() {
+  // Never load the real .env (production keys) into the test runner.
+  if (process.env.NODE_TEST_CONTEXT) return;
   try {
     const raw = readFileSync(join(process.cwd(), '.env'), 'utf8');
     for (const line of raw.split(/\r?\n/)) {
