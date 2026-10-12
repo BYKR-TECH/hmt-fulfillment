@@ -23,11 +23,17 @@ test('pickup retries accept collected shipments but reject inactive shipments', 
   for (const status of ['pending', 'failed', 'cancelled', 'returned']) assert.equal(canConfirmPickup({ ...shipment, status }), false);
   assert.equal(canConfirmPickup({ ...shipment, direction: 'reverse' }), false);
 });
-test('carrier progress or existing Wix fulfillment completes pickup', () => {
+test('carrier progress completes pickup independently of order fulfillment', () => {
   assert.equal(hasCompletedPickup({ ...shipment, status: 'in-transit' }), true);
-  assert.equal(hasCompletedPickup({ ...shipment, fulfillment_status: 'FULFILLED' }), true);
-  assert.equal(hasCompletedPickup({ ...shipment, wix_fulfillment_status: 'fulfilled' }), true);
   assert.equal(hasCompletedPickup(shipment), false);
+});
+test('replacement on an already fulfilled order still awaits its own pickup', () => {
+  for (const wix_fulfillment_status of ['awaiting-pickup', 'fulfilled', 'synced']) {
+    const replacement = { ...shipment, fulfillment_status: 'FULFILLED', wix_fulfillment_status };
+    assert.equal(isAwaitingWarehousePickup(replacement) && !hasCompletedPickup(replacement), true);
+    assert.equal(hasCompletedPickup({ ...replacement, status: 'delivered' }), true);
+    assert.equal(hasCompletedPickup({ ...replacement, status: 'cancelled' }), false);
+  }
 });
 
 import { readFileSync } from 'node:fs';
