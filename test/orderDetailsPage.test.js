@@ -29,7 +29,7 @@ function dataHarness(rows, { queryIds = rows.map(row => row.id), error = null } 
       or() { return builder; },
       neq(key, value) { state.filters.push(row => row[key] !== value); return builder; },
       eq(key, value) { state.filters.push(row => row[key] === value); return builder; },
-      in(key, values) { assert.ok(values.length <= 200 || key !== 'id'); state.filters.push(row => values.includes(row[key])); return builder; },
+      in(key, values) { assert.ok(values.length <= 200 || !['id', 'order_id'].includes(key)); state.filters.push(row => values.includes(row[key])); return builder; },
       order(key, options = {}) { state.orders.push({ key, ...options }); return builder; },
       range(from, to) { state.from = from; state.to = to; return builder; },
       limit(limit) { state.to = limit - 1; return builder; },
@@ -177,4 +177,10 @@ test('order and GST amounts retain paise instead of rounding fractional tax to z
   const html = renderToStaticMarkup(React.createElement(OrderTable, { orders, showDetails: true }));
   assert.match(html, /Tax recorded: <strong>₹0.15<\/strong>/);
   assert.match(html, /Subtotal: ₹0.85/);
+});
+
+test('dashboard loads outbound tracking in bounded order batches', async () => {
+  const { api, selects } = dataHarness(Array.from({ length: 250 }, (_, i) => fixture(i)));
+  await api.getDashboardSummary();
+  assert.equal(selects.filter(query => query.table === 'shipments').length, 3);
 });
