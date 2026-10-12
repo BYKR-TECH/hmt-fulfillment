@@ -73,3 +73,41 @@ test('fetches Delhivery tracking and indexes waybills case-insensitively', async
     globalThis.fetch = originalFetch;
   }
 });
+
+test('tracking pass calls the status-change handler for every changed shipment', async () => {
+  const { createDelhiveryTrackingSync } = await import('../src/delhiveryTracking.js');
+  const config = {
+    delhivery: { trackingEnabled: true, token: 'test-token', trackingBatchSize: 10, trackingIntervalMs: 900_000 },
+    supabase: { url: 'http://supabase.test', serviceRoleKey: 'test-key' }
+  };
+  const shipments = [
+    { id: 's1', order_id: 'o1', waybill: 'AWB1', courier_code: 'delhivery', status: 'booked' },
+    { id: 's2', order_id: 'o2', waybill: 'AWB2', courier_code: 'delhivery', status: 'booked' }
+  ];
+  const updates = [];
+  const changed = [];
+  const sync = createDelhiveryTrackingSync(config, {
+    logger: {},
+    setTimer: () => null,
+    clearTimer: () => null,
+    listActiveShipmentWaybills: async () => shipments,
+    saveTrackingEvents: async () => 0,
+    updateShipmentTracking: async (id, patch) => updates.push({ id, status: patch.status }),
+    fetchCourierTracking: async () => new Map([
+      ['AWB1', { Status: { Status: 'Picked Up' } }],
+      ['AWB2', { Status: { Status: 'Picked Up' } }]
+    ]),
+    onShipmentStatusChanged: async shipment => {
+      changed.push(shipment.id);
+      if (shipment.id === 's1') throw new Error('channel down');
+    }
+  });
+
+  const result = await sync.run('test');
+
+  assert.equal(result.lastError, null);
+  assert.deepEqual(updates, [{ id: 's1', status: 'picked-up' }, { id: 's2', status: 'picked-up' }]);
+  assert.deepEqual(changed, ['s1', 's2']);
+  assert.equal(result.lastUpdated, 2);
+  assert.match(result.lastWarnings[0], /status-update callback failed: channel down/);
+});
