@@ -26,6 +26,7 @@ function dataHarness(rows, { queryIds = rows.map(row => row.id), error = null } 
     const state = { table, filters: [], orders: [], from: 0, to: Infinity };
     const builder = {
       select(columns, options) { selects.push({ table, columns, options }); return builder; },
+      or() { return builder; },
       neq(key, value) { state.filters.push(row => row[key] !== value); return builder; },
       eq(key, value) { state.filters.push(row => row[key] === value); return builder; },
       in(key, values) { assert.ok(values.length <= 200 || key !== 'id'); state.filters.push(row => values.includes(row[key])); return builder; },

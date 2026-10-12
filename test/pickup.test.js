@@ -28,8 +28,8 @@ test('carrier progress completes pickup independently of order fulfillment', () 
   assert.equal(hasCompletedPickup(shipment), false);
 });
 test('replacement on an already fulfilled order still awaits its own pickup', () => {
-  for (const wix_fulfillment_status of ['awaiting-pickup', 'fulfilled', 'synced']) {
-    const replacement = { ...shipment, fulfillment_status: 'FULFILLED', wix_fulfillment_status };
+  for (const wix_fulfillment_status of ['awaiting-pickup']) {
+    const replacement = { ...shipment, is_additional_outbound: true, fulfillment_status: 'FULFILLED', wix_fulfillment_status };
     assert.equal(isAwaitingWarehousePickup(replacement) && !hasCompletedPickup(replacement), true);
     assert.equal(hasCompletedPickup({ ...replacement, status: 'delivered' }), true);
     assert.equal(hasCompletedPickup({ ...replacement, status: 'cancelled' }), false);
@@ -162,4 +162,11 @@ test('inactive shipment cannot trigger fulfillment', async () => {
   const harness = pickupHarness({ status: 'cancelled' });
   assert.equal((await harness.run()).ok, false);
   assert.equal(harness.calls(), 0);
+});
+
+test('historical booked shipments on fulfilled orders stay out of awaiting pickup', () => {
+  for (const wix_fulfillment_status of ['fulfilled', 'synced', 'awaiting-pickup']) {
+    assert.equal(hasCompletedPickup({ ...shipment, fulfillment_status: 'FULFILLED', wix_fulfillment_status }), true);
+  }
+  assert.equal(hasCompletedPickup({ ...shipment, is_additional_outbound: true, fulfillment_status: 'FULFILLED', wix_fulfillment_status: 'synced' }), true);
 });

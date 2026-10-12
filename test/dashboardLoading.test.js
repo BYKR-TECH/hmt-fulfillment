@@ -21,7 +21,7 @@ async function summaryWithQueries({ legacy = false } = {}) {
     let columns;
     const request = {
       select(value) { columns = value; queries.push({ table, columns }); return this; },
-      neq() { return this; }, order() { return this; }, limit() { return this; },
+      or() { return this; }, neq() { return this; }, order() { return this; }, limit() { return this; },
       range() { return this; }, in() { return this; },
       then(resolve) {
         if (table === 'shipments') return Promise.resolve(resolve({ data: [{ order_id: 'packed', status: 'pickup_pending', waybill: 'AWB' }] }));
