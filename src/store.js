@@ -5,6 +5,7 @@ import { getConfig } from './config.js';
 import { isSupabaseConfigured, SupabaseRestClient } from './supabase.js';
 import { isWooCommerceRawOrder } from './wooOrderShape.js';
 import { findMatchingShipment } from '../lib/crm/shipment-dedup.js';
+import { buildRecoverySummary } from './shipmentRecovery.js';
 
 const STORE_PATH = join(process.cwd(), 'data', 'shipments.json');
 
@@ -326,7 +327,7 @@ export async function listActiveShipmentWaybills() {
       'shipments',
       'select=id,waybill,order_id,status,courier_code,tracking_url,updated_at' +
         '&waybill=not.is.null' +
-        '&status=not.in.(delivered,rto,cancelled,failed)' +
+        '&status=not.in.(delivered,rto_delivered,cancelled,failed)' +
         '&order=updated_at.asc,id.asc' +
         `&limit=${pageSize}&offset=${offset}`
     );
@@ -479,7 +480,26 @@ function progressedShipmentStatus(current, next) {
 
 async function syncOrderShipmentSummary(supabase, shipment) {
   if (!shipment.order_id) return;
-  await supabase.patch('orders', `id=eq.${shipment.order_id}`, buildOrderShipmentSummary(shipment));
+  const legs = await supabase.select('shipments', `order_id=eq.${shipment.order_id}&order=created_at.desc`);
+  if (legs.some(leg => /^(rto|returned)/.test(leg.status || ''))) {
+    const orders = await supabase.select('orders', `id=eq.${shipment.order_id}&select=id,status,payment_status,internal_status`);
+    await supabase.patch('orders', `id=eq.${shipment.order_id}`, buildRecoverySummary(orders[0] || {}, legs));
+  } else {
+    const current = legs.find(leg => leg.direction !== 'reverse' && leg.waybill && !['cancelled', 'failed'].includes(leg.status));
+    if (current && current.id !== shipment.id) return;
+    if (shipment.direction === 'reverse') return;
+    await supabase.patch('orders', `id=eq.${shipment.order_id}`, buildOrderShipmentSummary(shipment));
+  }
+}
+
+export async function reconcileOrderShipments(orderId) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  const legs = await supabase.select('shipments', `order_id=eq.${orderId}&order=created_at.desc`);
+  const orders = await supabase.select('orders', `id=eq.${orderId}&select=id,status,payment_status,internal_status`);
+  const patch = buildRecoverySummary(orders[0] || {}, legs);
+  if (Object.keys(patch).length) await supabase.patch('orders', `id=eq.${orderId}`, patch);
+  return patch;
 }
 
 async function upsertSupabaseWixOrder(supabase, order) {
@@ -672,6 +692,11 @@ function getSupabaseClient() {
 function denormalizeShipment(row) {
   return {
     id: row.id,
+    dbOrderId: row.order_id,
+    courierCode: row.courier_code,
+    carrier_response: row.carrier_response,
+    label_url: row.label_url || '',
+    label_format: row.label_format || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     orderId: row.legacy_order_id,

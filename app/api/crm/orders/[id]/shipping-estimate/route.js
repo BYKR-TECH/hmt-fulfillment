@@ -4,6 +4,7 @@ import { applyCrmSettingsToConfig } from '@/lib/crm/settings';
 import { getConfig } from '@/src/config.js';
 import { fetchFedexRateQuote } from '@/src/fedexRates.js';
 import { calculateDelhiveryCharge } from '@/src/delhivery.js';
+import { getShiprocketRates } from '@/src/shiprocket.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,10 @@ export async function POST(request, { params }) {
   };
 
   try {
+    if (body.courier === 'shiprocket') {
+      const quotes = await getShiprocketRates({ pickupLocation: body.pickup_location || 'Sis Vars', deliveryPincode: body.pincode || address.postal_code, deliveryCountry: address.country || 'IN', paymentMode: body.payment_mode, weightGrams: packageDefaults.weight_grams, lengthCm: packageDefaults.length_cm, widthCm: packageDefaults.width_cm, heightCm: packageDefaults.height_cm, declaredValue: packageDefaults.product_value, isReturn: ['reverse', 'rto'].includes(body.shipment_type) }, config);
+      return Response.json({ ok: true, courier: 'shiprocket', quotes });
+    }
     if (country && !['IN', 'INDIA'].includes(country)) {
       const result = await fetchFedexRateQuote({
         ...order,

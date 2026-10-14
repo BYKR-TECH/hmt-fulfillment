@@ -169,6 +169,13 @@ export function getConfig() {
           : 'https://staging-express.delhivery.com/fm/request/new/')
     },
     shiprocket: {
+      pickupLocation: process.env.SHIPROCKET_PICKUP_LOCATION || 'Sis Vars',
+      returnName: process.env.SHIPROCKET_RETURN_NAME || process.env.DELHIVERY_RETURN_NAME || '',
+      returnAddress: process.env.SHIPROCKET_RETURN_ADDRESS || process.env.DELHIVERY_RETURN_ADDRESS || '',
+      returnCity: process.env.SHIPROCKET_RETURN_CITY || process.env.DELHIVERY_RETURN_CITY || '',
+      returnState: process.env.SHIPROCKET_RETURN_STATE || process.env.DELHIVERY_RETURN_STATE || '',
+      returnPincode: process.env.SHIPROCKET_RETURN_PINCODE || process.env.DELHIVERY_RETURN_PINCODE || '',
+      returnPhone: process.env.SHIPROCKET_RETURN_PHONE || process.env.DELHIVERY_RETURN_PHONE || '',
       baseUrl: process.env.SHIPROCKET_BASE_URL || 'https://apiv2.shiprocket.in/v1/external',
       token: process.env.SHIPROCKET_API_TOKEN || process.env.SHIPROCKET_AUTH_TOKEN || '',
       email: process.env.SHIPROCKET_EMAIL || '',

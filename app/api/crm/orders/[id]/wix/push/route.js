@@ -14,7 +14,7 @@ export async function POST(request, { params }) {
     const order = await findOrderById(id);
     if (!order?.wix_order_id) return NextResponse.json({ ok: false, error: 'Wix order not found.' }, { status: 404 });
     const shipment = body.shipmentId ? await findShipmentById(body.shipmentId) : await findLatestShipmentForOrder(order);
-    if (!shipment || shipment.order_id !== order.id || !shipment.waybill || shipment.direction === 'reverse' || ['cancelled', 'canceled', 'returned', 'rto', 'failed', 'pending', 'pending-zone', 'pending-international'].includes(String(shipment.status).toLowerCase())) {
+    if (!shipment || shipment.order_id !== order.id || !shipment.waybill || shipment.direction === 'reverse' || String(shipment.status).toLowerCase().startsWith('rto') || ['cancelled', 'canceled', 'returned', 'rto', 'failed', 'pending', 'pending-zone', 'pending-international'].includes(String(shipment.status).toLowerCase())) {
       return NextResponse.json({ ok: false, error: 'An active outbound shipment with an AWB is required.' }, { status: 400 });
     }
     const config = applyCrmSettingsToConfig(getConfig(), await getCrmSettings());

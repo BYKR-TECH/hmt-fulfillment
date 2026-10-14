@@ -86,6 +86,7 @@ export default async function OrderDetailPage({ params, searchParams }) {
       ) : null}
 
       <section className="grid metrics">
+        {order.internal_status === 'replacement_required' ? <article className="card full" role="alert"><strong>Replacement shipment required</strong><p>The outbound shipment is returning to sender. The customer still needs delivery. Confirm the address, then book another outbound shipment below.</p><a href="#replacement-booking" className="button">Book another shipment</a></article> : null}
         <article className="card metric"><span>Status</span><StatusPill value={order.internal_status} /></article>
         <article className="card metric"><span>Fulfillment</span><StatusPill value={order.fulfillment_status || order.wix_fulfillment_status || 'not_fulfilled'} /><small>{order.wix_fulfillment_id || 'No Wix fulfillment ID'}</small></article>
         <article className="card metric">

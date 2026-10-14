@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { FulfillShipmentButton } from './fulfill-shipment-button';
 import { Search } from 'lucide-react';
 import { StatusPill } from './status-pill';
+import { canCancelShiprocket } from '@/lib/crm/shiprocket-cancellation.js';
 
 export function ShipmentFilters({ query = '', status = '', courier = '' }) {
   return <form className="filters" action="/shipments">
@@ -29,9 +30,9 @@ function ShipmentRow({ shipment }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const status = String(shipment.status || '').toLowerCase();
-  const canCancel = shipment.order_id && shipment.waybill && String(shipment.courier_code || '').toLowerCase() === 'delhivery' && !['delivered', 'cancelled', 'returned', 'rto'].includes(status);
+  const canCancel = shipment.order_id && (canCancelShiprocket(shipment) || (shipment.waybill && String(shipment.courier_code || '').toLowerCase() === 'delhivery' && !['delivered', 'cancelled', 'returned', 'rto', 'rto_in_transit', 'rto_delivered'].includes(status)));
   async function cancel() {
-    if (!window.confirm(`Cancel Delhivery shipment ${shipment.waybill}? This cannot be undone.`)) return;
+    if (!window.confirm(`Cancel ${shipment.courier_code} shipment ${shipment.waybill || shipment.order_number}? This cannot be undone.`)) return;
     setBusy(true); setMessage('');
     const response = await fetch(`/api/crm/orders/${shipment.order_id}/shipments/${shipment.id}/cancel`, { method: 'POST' });
     const result = await response.json().catch(() => ({}));

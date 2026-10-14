@@ -8,7 +8,7 @@ export function FulfillShipmentButton({ orderId, shipment }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
-  if (!orderId || !shipment.waybill || shipment.direction === 'reverse' || ['cancelled', 'canceled', 'returned', 'rto', 'failed', 'pending', 'pending-zone', 'pending-international'].includes(String(shipment.status).toLowerCase())) return null;
+  if (!orderId || !shipment.waybill || shipment.direction === 'reverse' || /^rto/.test(String(shipment.status).toLowerCase()) || ['cancelled', 'canceled', 'returned', 'rto', 'failed', 'pending', 'pending-zone', 'pending-international'].includes(String(shipment.status).toLowerCase())) return null;
 
   async function fulfill() {
     setBusy(true);

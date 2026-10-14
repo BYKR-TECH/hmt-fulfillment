@@ -67,6 +67,7 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
     return query;
   } };
   const mocks = {
+    './shiprocket-cancellation.js': {},
     './order-display.js': { orderDisplayDetails },
     './pickup.js': { isAwaitingWarehousePickup, canConfirmPickup },
     './shipment-dedup': { findMatchingShipment: () => null, isDuplicateShipmentError: () => false },

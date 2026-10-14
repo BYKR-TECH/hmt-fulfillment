@@ -22,7 +22,9 @@ export async function bookWixOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -76,6 +78,7 @@ export async function bookWixOrder(order, config, metadata = {}) {
     const failed = await upsertShipment({
       ...pending,
       status: 'failed',
+      delhiveryResponse: error.carrierResponse || null,
       error: error.message
     });
     throw Object.assign(error, { shipment: failed });
@@ -156,7 +159,9 @@ export async function bookAmazonOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -194,6 +199,7 @@ export async function bookAmazonOrder(order, config, metadata = {}) {
     const failed = await upsertShipment({
       ...pending,
       status: 'failed',
+      delhiveryResponse: error.carrierResponse || null,
       error: error.message
     });
     throw Object.assign(error, { shipment: failed });
@@ -239,7 +245,9 @@ export async function bookWooCommerceOrder(order, config, metadata = {}) {
     internationalService: metadata.internationalService,
     reverse: metadata.reverse,
     orderNumberOverride: metadata.orderNumberOverride,
-    deliveryOverride: metadata.deliveryOverride
+    deliveryOverride: metadata.deliveryOverride,
+    courierId: metadata.courierId,
+    pickupLocation: metadata.pickupLocation
   });
   const pending = await upsertShipment({
     ...metadata,
@@ -291,6 +299,7 @@ export async function bookWooCommerceOrder(order, config, metadata = {}) {
     const failed = await upsertShipment({
       ...pending,
       status: 'failed',
+      delhiveryResponse: error.carrierResponse || null,
       error: error.message
     });
     throw Object.assign(error, { shipment: failed });

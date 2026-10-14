@@ -21,6 +21,16 @@ export async function POST(request, { params }) {
   let eventTime = payload.event_time || new Date().toISOString();
   let location = payload.location || null;
   let message = payload.message || null;
+  if (courier === 'shiprocket') {
+    const { normalizeShiprocketStatus } = await import('@/src/shiprocketTracking.js');
+    normalized = normalizeShiprocketStatus(payload.current_status || payload.shipment_status || normalized);
+  }
+  if (courier === 'delhivery') {
+    const { normalizeDelhiveryStatus } = await import('@/src/delhiveryTracking.js');
+    const detail = payload.Shipment?.Status || payload.Status || {};
+    normalized = normalizeDelhiveryStatus(detail.Status || payload.status || normalized, detail.StatusType || payload.StatusType || payload.status_type);
+    awb = payload.Shipment?.AWB || payload.Shipment?.Waybill || awb;
+  }
 
   if (courier === 'fedex') {
     const secret = process.env.FEDEX_WEBHOOK_SECRET;
@@ -75,11 +85,8 @@ export async function POST(request, { params }) {
   });
 
   await supabase.from('shipments').update({ status: normalized, updated_at: new Date().toISOString() }).eq('id', shipment.id);
-  await supabase.from('orders').update({
-    shipment_status: normalized,
-    internal_status: normalized === 'delivered' ? 'installation_pending' : normalized,
-    updated_at: new Date().toISOString()
-  }).eq('id', shipment.order_id);
+  const { reconcileOrderShipments } = await import('@/src/store.js');
+  await reconcileOrderShipments(shipment.order_id);
 
   return NextResponse.json({ accepted: true, matched: true });
 }
