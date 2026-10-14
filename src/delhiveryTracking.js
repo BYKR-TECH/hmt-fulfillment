@@ -94,8 +94,9 @@ export async function fetchDelhiveryTracking(waybills, config) {
  * @param {string} delhiveryStatus
  * @returns {string}
  */
-export function normalizeDelhiveryStatus(delhiveryStatus) {
+export function normalizeDelhiveryStatus(delhiveryStatus, statusType = '') {
   const s = String(delhiveryStatus || '').toLowerCase().trim();
+  if (String(statusType).toUpperCase() === 'RT') return s.includes('delivered') ? 'rto_delivered' : 'rto_in_transit';
 
   if (s.startsWith('rto')) return 'rto';
   if (s.includes('delivered')) return 'delivered';
@@ -144,7 +145,7 @@ export function extractTrackingEvents(pkg) {
 
     events.push({
       event_status: status,
-      normalized_status: normalizeDelhiveryStatus(status),
+      normalized_status: normalizeDelhiveryStatus(status, scanDetail.ScanType || scanDetail.StatusType),
       carrier_location: location || null,
       message: message || null,
       occurred_at: occurredAt,
@@ -306,7 +307,9 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
       const pkg = trackingMap.get(shipment.waybill) || trackingMap.get(normalizeWaybillKey(shipment.waybill));
       if (!pkg) continue;
 
-      const liveStatus = normalizeCourierStatus(courierCode, getCourierLiveStatus(courierCode, pkg));
+      const liveStatus = courierCode === 'delhivery'
+        ? normalizeDelhiveryStatus(getCourierLiveStatus(courierCode, pkg), pkg?.Status?.StatusType || pkg?.status?.StatusType)
+        : normalizeCourierStatus(courierCode, getCourierLiveStatus(courierCode, pkg));
       const location = getCourierLiveLocation(courierCode, pkg);
 
       // Extract and save new scan events
@@ -475,6 +478,8 @@ function extractCourierTrackingEvents(courierCode, pkg) {
 
 function shouldUpdateStatus(current, next) {
   if (!next || current === next) return false;
+  if (String(next).startsWith('rto')) return current !== 'rto_delivered';
+  if (String(current).startsWith('rto')) return false;
   // Terminal states — don't overwrite
   if (['delivered', 'rto', 'failed', 'cancelled'].includes(current)) return false;
   const currentRank = STATUS_ORDER.indexOf(current);

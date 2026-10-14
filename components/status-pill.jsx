@@ -4,6 +4,7 @@ const ok = new Set(['packed', 'booked', 'shipment_booked', 'picked_up', 'in_tran
 const info = new Set(['guide_sent', 'video_sent', 'installation_scheduled', 'review_requested', 'out_for_delivery', 'pending_international', 'pending-international', 'PARTIALLY_FULFILLED']);
 
 export function StatusPill({ value }) {
+  danger.add('replacement_required'); danger.add('rto_in_transit');
   const key = value || 'not_set';
   const tone = danger.has(key) ? 'danger' : warn.has(key) ? 'warn' : ok.has(key) ? 'ok' : info.has(key) ? 'info' : 'neutral';
   return <span className={`pill ${tone}`}>{String(key).replaceAll('_', ' ').replaceAll('-', ' ')}</span>;

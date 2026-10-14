@@ -4,19 +4,20 @@ import { useState } from 'react';
 import { FulfillShipmentButton } from './fulfill-shipment-button';
 import { PrintLabelButton } from './print-label-button';
 import { defaultPickupWindow } from './pickup-location-groups';
+import { canCancelShiprocket } from '@/lib/crm/shiprocket-cancellation.js';
 
 export function ShipmentActions({ orderId, shipment }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const status = String(shipment.status || '').toLowerCase();
-  const canCancel = shipment.waybill && String(shipment.courier_code || '').toLowerCase() === 'delhivery' && !['delivered', 'cancelled', 'returned', 'rto'].includes(status);
+  const canCancel = canCancelShiprocket(shipment) || (shipment.waybill && String(shipment.courier_code || '').toLowerCase() === 'delhivery' && !['delivered', 'cancelled', 'returned', 'rto', 'rto_in_transit', 'rto_delivered'].includes(status));
   const canPrint = Boolean(shipment.id && shipment.waybill && String(shipment.courier_code || 'delhivery').toLowerCase() === 'delhivery');
-  const canRaisePickup = canPrint && shipment.direction !== 'reverse' && !['pickup_pending', 'picked-up', 'picked_up', 'dispatched', 'in-transit', 'in_transit', 'out-for-delivery', 'out_for_delivery', 'delivered', 'cancelled', 'canceled', 'returned', 'rto'].includes(status);
-  const canSendWhatsApp = Boolean(shipment.id && shipment.waybill && shipment.direction !== 'reverse' && !['cancelled', 'canceled', 'returned', 'rto', 'failed', 'pending', 'pending-zone', 'pending-international'].includes(status));
+  const canRaisePickup = canPrint && shipment.direction !== 'reverse' && !status.startsWith('rto') && !['pickup_pending', 'picked-up', 'picked_up', 'dispatched', 'in-transit', 'in_transit', 'out-for-delivery', 'out_for_delivery', 'delivered', 'cancelled', 'canceled', 'returned', 'rto'].includes(status);
+  const canSendWhatsApp = Boolean(shipment.id && shipment.waybill && shipment.direction !== 'reverse' && !status.startsWith('rto') && !['cancelled', 'canceled', 'returned', 'rto', 'failed', 'pending', 'pending-zone', 'pending-international'].includes(status));
 
 
   async function cancel() {
-    if (!window.confirm(`Cancel Delhivery shipment ${shipment.waybill}? This cannot be undone.`)) return;
+    if (!window.confirm(`Cancel ${shipment.courier_code} shipment ${shipment.waybill || shipment.order_number}? This cannot be undone.`)) return;
     setBusy(true);
     setMessage('');
     const response = await fetch(`/api/crm/orders/${orderId}/shipments/${shipment.id}/cancel`, { method: 'POST' });

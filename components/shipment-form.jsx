@@ -9,6 +9,8 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const [labelBusy, setLabelBusy] = useState(false);
   const [rateBusy, setRateBusy] = useState(false);
   const [fedexRate, setFedexRate] = useState(null);
+  const [shiprocketQuotes, setShiprocketQuotes] = useState([]);
+  const [shiprocketCourierId, setShiprocketCourierId] = useState('');
   const [courier, setCourier] = useState(order.courier || defaultCourierForOrder(order));
   const [shipmentType, setShipmentType] = useState('original');
   const [replacementPart, setReplacementPart] = useState('');
@@ -38,13 +40,13 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     if (submitter?.name) body[submitter.name] = submitter.value;
     if (body.booking_action === 'book_courier' && hasExistingShipment && shipmentType === 'original') {
       const confirmed = window.confirm(
-        `This order already has a booked shipment${order.awb_number ? ` (${order.awb_number})` : ''}. Book another shipment with a new Delhivery order number?`
+        `This order already has a shipment${order.awb_number ? ` (${order.awb_number})` : ''}. Book a new outbound shipment with a new reference?`
       );
       if (!confirmed) return;
       body.allow_multiple_shipments = 'true';
     }
     if (shipmentType !== 'original') body.allow_multiple_shipments = 'true';
-    if (['reverse', 'rto'].includes(shipmentType)) body.service_code = 'reverse_pickup';
+    if (['reverse', 'rto'].includes(shipmentType)) body.service_code = courier === 'shiprocket' ? 'shiprocket_return' : 'reverse_pickup';
     setBusy(true);
     try {
       const response = await fetch(`/api/crm/orders/${order.id}/shipment`, {
@@ -146,8 +148,21 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     setMessage(quote ? 'FedEx estimate loaded.' : 'FedEx returned no rate quotes for this shipment.');
   }
 
+  async function getShiprocketEstimates(event) {
+    const body = Object.fromEntries(new FormData(event.currentTarget.form).entries());
+    setMessage(''); setShiprocketQuotes([]); setShiprocketCourierId(''); setRateBusy(true);
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/shipping-estimate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, courier: 'shiprocket' }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Estimates failed');
+      setShiprocketQuotes(data.quotes || []);
+      setMessage(data.quotes?.length ? `${data.quotes.length} courier services available. Select one to book.` : 'No couriers available for this route.');
+    } catch (error) { setMessage(error.message); } finally { setRateBusy(false); }
+  }
+
   return (
-    <form className="formGrid shipmentBookingForm" action={`/api/crm/orders/${order.id}/shipment`} method="post" onSubmit={submit}>
+    <form id="replacement-booking" className="formGrid shipmentBookingForm" action={`/api/crm/orders/${order.id}/shipment`} method="post" onSubmit={submit}>
+      <input type="hidden" name="shiprocket_courier_id" value={shiprocketCourierId} />
       {needsDeliveryFix ? (
         <div className="shipmentSource full" role="alert">
           <div>
@@ -220,7 +235,7 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       </label>
       <label>
         <span>Courier</span>
-        <select name="courier" value={courier} onChange={event => setCourier(event.target.value)}>
+        <select name="courier" value={courier} onChange={event => { setCourier(event.target.value); setShiprocketQuotes([]); setShiprocketCourierId(''); }}>
           {Array.from(new Set([order.courier, ...COURIERS].filter(Boolean))).map(courier => (
             <option value={courier} key={courier}>{courier.replaceAll('_', ' ')}</option>
           ))}
@@ -267,28 +282,21 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
       </label>
       <label>
         <span>Direct tracking link{['delhivery', 'fedex', 'shiprocket'].includes(courier) ? ' (optional)' : ''}</span>
-        <input
-          name="tracking_url"
-          type="url"
-          value={trackingUrl}
-          onChange={event => setTrackingUrl(event.target.value)}
-          placeholder="https://carrier.example/track/..."
-          required={!['delhivery', 'fedex', 'shiprocket'].includes(courier)}
-        />
+        <input name="tracking_url" type="url" value={trackingUrl} onChange={event => setTrackingUrl(event.target.value)} placeholder="https://carrier.example/track/..." required={!['delhivery', 'fedex', 'shiprocket'].includes(courier)} />
       </label>
       <label>
         <span>Label URL</span>
         <input name="label_url" value={labelUrl} onChange={event => setLabelUrl(event.target.value)} placeholder="Supabase Storage or courier label URL" />
       </label>
-      <label className="checkItem full">
+      {courier !== 'shiprocket' ? <label className="checkItem full">
         <input type="checkbox" name="insurance" />
         <span>Insurance option requested</span>
-      </label>
+      </label> : <p className="muted full">Secure opt-in is off. Turn off Auto Secure in Shiprocket account settings too to prevent automatic cover.</p>}
       {selectedBookingCourier && !selectedBookingCourier.enabled ? (
         <p className="muted full">Direct API booking for {selectedBookingCourier.name} is not configured yet. Save the shipment with a manual AWB for now.</p>
       ) : null}
       <div className="toolbar full">
-        <button type="submit" name="booking_action" value="book_courier" disabled={busy} aria-busy={busy}>
+        <button type="submit" name="booking_action" value="book_courier" disabled={busy || (courier === 'shiprocket' && !shiprocketCourierId)} aria-busy={busy}>
           {busy ? <><span className="buttonSpinner" aria-hidden="true" />Booking shipment…</> : `Book ${shipmentType === 'original' ? 'shipment' : shipmentType}`}
         </button>
         <button type="submit" name="booking_action" value="save_manual_awb" className="secondary" disabled={busy}>Save manual AWB</button>
@@ -311,8 +319,18 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
             </button>
           </>
         ) : null}
-        {message ? <span className="muted">{message}</span> : null}
+        {courier === 'shiprocket' ? <button type="button" className="secondary" onClick={getShiprocketEstimates} disabled={rateBusy}>{rateBusy ? 'Loading couriers…' : 'Get Shiprocket estimates'}</button> : null}
+        {message ? <span className="muted" role="status">{message}</span> : null}
       </div>
+      {courier === 'shiprocket' && shiprocketQuotes.length > 0 ? <fieldset className="full shiprocketQuotes"><legend>Choose a courier</legend>
+        {shiprocketQuotes.map(quote => <label className="shiprocketQuote" key={quote.courierId}>
+          <input type="radio" name="shiprocket_quote" checked={shiprocketCourierId === String(quote.courierId)} onChange={() => setShiprocketCourierId(String(quote.courierId))} />
+          <span><strong>{quote.courierName}</strong><small>{quote.estimatedDeliveryDate || quote.estimatedDeliveryDays} · {quote.mode}</small></span>
+          <strong>{quote.currency} {quote.rate?.toFixed(2)}</strong>
+        </label>)}
+        <p className="muted">Booking requests pickup automatically. The confirmation will show whether pickup succeeded.</p>
+        <button type="submit" name="booking_action" value="book_courier" disabled={busy || !shiprocketCourierId}>{busy ? 'Booking…' : 'Book selected courier'}</button>
+      </fieldset> : null}
       {courier === 'fedex' && fedexRate ? (
         <div className="shipmentSource full">
           <div>

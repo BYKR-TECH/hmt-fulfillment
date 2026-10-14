@@ -15,6 +15,13 @@
   --shadow: 0 10px 32px rgba(24, 36, 48, 0.08);
 }
 
+.shiprocketQuotes { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; }
+.shiprocketQuote { display: flex !important; align-items: center; gap: 10px; border: 1px solid var(--line); padding: 12px; border-radius: 8px; cursor: pointer; }
+.shiprocketQuote:has(input:checked) { border-color: var(--brand); background: #edf8f4; }
+.shiprocketQuote input { width: 16px; min-height: 0; accent-color: var(--brand); }
+.shiprocketQuote span { flex: 1; display: grid; gap: 4px; }
+.shiprocketQuote small { color: var(--muted); }
+
 * {
   box-sizing: border-box;
 }
