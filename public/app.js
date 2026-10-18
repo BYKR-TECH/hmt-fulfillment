@@ -128,9 +128,7 @@ async function loadDashboard() {
   if (!response.ok) throw new Error(data.error || 'Could not load dashboard');
 
   currentOrders = data.orders || [];
-  ordersBody.innerHTML = currentOrders.length
-    ? currentOrders.map(renderOrderRow).join('')
-    : '<tr><td colspan="7" class="empty">No orders in this queue.</td></tr>';
+  replaceOrderRows(currentOrders);
   renderSummary(data.summary || {}, data.sync || {});
   ordersStatusText.textContent = `${currentOrders.length} order${currentOrders.length === 1 ? '' : 's'}`;
   loadRatesForOrders(currentOrders, currentQueue).catch(error => {
@@ -279,10 +277,16 @@ async function loadRatesForOrders(orders, queue) {
   );
 
   if (queue === currentQueue) {
-    ordersBody.innerHTML = currentOrders.length
-      ? currentOrders.map(renderOrderRow).join('')
-      : '<tr><td colspan="7" class="empty">No orders in this queue.</td></tr>';
+    replaceOrderRows(currentOrders);
   }
+}
+
+function replaceOrderRows(orders) {
+  const markup = orders.length
+    ? orders.map(renderOrderRow).join('')
+    : '<tr><td colspan="7" class="empty">No orders in this queue.</td></tr>';
+  const documentFragment = new DOMParser().parseFromString(`<table><tbody>${markup}</tbody></table>`, 'text/html');
+  ordersBody.replaceChildren(...documentFragment.querySelector('tbody').childNodes);
 }
 
 async function fetchRate(pin, weight, mode) {

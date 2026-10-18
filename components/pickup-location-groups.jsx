@@ -2,39 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { FulfillShipmentButton } from './fulfill-shipment-button';
 import { StatusPill } from './status-pill';
+import { defaultPickupWindow } from '@/lib/crm/pickup-window';
+import { TableHead } from './table-head';
 
-/** Default Delhivery pickup slot: 16:00 Asia/Kolkata. After 16:00 IST, use tomorrow 16:00. */
-export function defaultPickupWindow(now = new Date()) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23'
-    }).formatToParts(now).map(part => [part.type, part.value])
-  );
-  const hour = Number(parts.hour);
-  const minute = Number(parts.minute);
-  let year = Number(parts.year);
-  let month = Number(parts.month);
-  let day = Number(parts.day);
-  if (hour > 16 || (hour === 16 && minute > 0)) {
-    const next = new Date(Date.UTC(year, month - 1, day) + 24 * 60 * 60 * 1000);
-    year = next.getUTCFullYear();
-    month = next.getUTCMonth() + 1;
-    day = next.getUTCDate();
-  }
-  return {
-    date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-    time: '16:00'
-  };
-}
+const INDIA_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
 
 function carrierLabel(carrier = '') {
   const value = String(carrier || 'unknown').trim();
@@ -58,24 +32,30 @@ function wixBadge(shipment) {
 export function PickupWorkspace({ workspace }) {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const refreshLock = useRef(false);
   const [refreshMessage, setRefreshMessage] = useState('');
   const { needsPickup = [], pickedUp = [], exceptions = [], updatedAt } = workspace || {};
   const awaitingCount = needsPickup.reduce((total, group) => total + group.shipments.length, 0);
 
   async function refresh() {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
     setRefreshing(true);
     setRefreshMessage('');
     try {
       const response = await fetch('/api/crm/pickups/refresh', { method: 'POST' });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) setRefreshMessage(result.tracking?.lastError || 'Live tracking refresh failed.');
-      else {
-        setRefreshMessage(`Live status updated for ${result.tracking?.lastPolled || 0} shipments.`);
-        router.refresh();
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        setRefreshMessage(result.tracking?.lastError || 'Live tracking refresh failed.');
+        return;
       }
+      const result = await response.json();
+      setRefreshMessage(`Live status updated for ${result.tracking?.lastPolled || 0} shipments.`);
+      router.refresh();
     } catch {
       setRefreshMessage('Could not refresh live carrier status.');
     } finally {
+      refreshLock.current = false;
       setRefreshing(false);
     }
   }
@@ -89,7 +69,7 @@ export function PickupWorkspace({ workspace }) {
             {awaitingCount} awaiting pickup · {pickedUp.length} picked up
           </h2>
           <p className="muted">
-            Last carrier update: {updatedAt ? new Date(updatedAt).toLocaleString('en-IN') : 'Not available yet'}.
+            Last carrier update: {updatedAt ? formatDateTime(updatedAt) : 'Not available yet'}.
             Delhivery + FedEx (and any other AWB) appear here when booked but not yet collected.
           </p>
           <p className="muted">Live carrier progress updates this queue automatically. Historical Wix-fulfilled shipments are also treated as completed.</p>
@@ -160,6 +140,7 @@ function PickupLocationGroup({ group }) {
   const canRequest = isDelhivery && group.location !== 'Unassigned pickup location';
 
   async function requestPickup() {
+    if (busy) return;
     const defaults = defaultPickupWindow();
     setBusy(true);
     setMessage('');
@@ -173,9 +154,14 @@ function PickupLocationGroup({ group }) {
           pickup_time: defaults.time
         })
       });
-      const result = await response.json().catch(() => ({}));
-      setMessage(result.message || result.error || 'Pickup request finished.');
-      if (result.ok) router.refresh();
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        setMessage(result.error || 'Pickup request could not be completed.');
+        return;
+      }
+      const result = await response.json();
+      setMessage(result.message || 'Pickup request finished.');
+      router.refresh();
     } catch {
       setMessage('Pickup request could not be completed. Please try again.');
     } finally {
@@ -210,19 +196,7 @@ function PickupLocationGroup({ group }) {
       </div>
       <div className="tableWrap">
         <table>
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Customer</th>
-              <th>Carrier</th>
-              <th>AWB</th>
-              <th>Warehouse</th>
-              <th>Waiting</th>
-              <th>Wix</th>
-              <th>Status</th>
-              <th>Links</th>
-            </tr>
-          </thead>
+          <TableHead columns={['Order', 'Customer', 'Carrier', 'AWB', 'Warehouse', 'Waiting', 'Wix', 'Status', 'Links']} />
           <tbody>
             {group.shipments.map(shipment => (
               <PickupShipmentRow key={shipment.id} shipment={shipment} showMarkPickup onDone={() => router.refresh()} />
@@ -245,15 +219,21 @@ function PickupShipmentRow({ shipment, showMarkPickup = false, onDone }) {
   const badge = wixBadge(shipment);
 
   async function markPickedUp() {
+    if (busy) return;
     setBusy(true);
     setMessage('');
     try {
       const response = await fetch(`/api/crm/orders/${shipment.order_id}/shipments/${shipment.id}/mark-picked-up`, {
         method: 'POST'
       });
-      const result = await response.json().catch(() => ({}));
-      setMessage(result.message || result.error || 'Mark picked up finished.');
-      if (result.ok || result.shipment) onDone?.();
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        setMessage(result.error || 'Could not mark picked up.');
+        return;
+      }
+      const result = await response.json();
+      setMessage(result.message || 'Mark picked up finished.');
+      onDone?.();
     } catch {
       setMessage('Could not mark picked up.');
     } finally {
@@ -279,7 +259,7 @@ function PickupShipmentRow({ shipment, showMarkPickup = false, onDone }) {
       <td>{shipment.pickup_location || '-'}</td>
       <td>
         {shipment.days_waiting == null ? '-' : `${shipment.days_waiting}d`}
-        {shipment.booked_at ? <span className="subtle">{new Date(shipment.booked_at).toLocaleString('en-IN')}</span> : null}
+        {shipment.booked_at ? <span className="subtle">{formatDateTime(shipment.booked_at)}</span> : null}
       </td>
       <td>
         <span className={`pill ${badge.tone === 'ok' ? 'ok' : badge.tone === 'danger' ? 'danger' : ''}`}>{badge.label}</span>
@@ -320,19 +300,7 @@ function ShipmentStatusSection({ title, description, shipments = [], empty, dang
       {shipments.length ? (
         <div className="tableWrap">
           <table>
-            <thead>
-              <tr>
-                <th>Order</th>
-                <th>Customer</th>
-                <th>Carrier</th>
-                <th>AWB</th>
-                <th>Warehouse</th>
-                <th>Live status</th>
-                <th>Wix</th>
-                <th>Last update</th>
-                <th>Links</th>
-              </tr>
-            </thead>
+            <TableHead columns={['Order', 'Customer', 'Carrier', 'AWB', 'Warehouse', 'Live status', 'Wix', 'Last update', 'Links']} />
             <tbody>
               {shipments.map(shipment => {
                 const badge = wixBadge(shipment);
@@ -358,7 +326,7 @@ function ShipmentStatusSection({ title, description, shipments = [], empty, dang
                     <td>
                       <span className={`pill ${badge.tone === 'ok' ? 'ok' : badge.tone === 'danger' ? 'danger' : ''}`}>{badge.label}</span>
                     </td>
-                    <td>{shipment.updated_at ? new Date(shipment.updated_at).toLocaleString('en-IN') : '-'}</td>
+                    <td>{shipment.updated_at ? formatDateTime(shipment.updated_at) : '-'}</td>
                     <td>
                       <div className="toolbar" style={{ gap: '0.35rem' }}>
                         <Link href={`/orders/${shipment.order_id}`}>Order</Link>
@@ -381,4 +349,8 @@ function ShipmentStatusSection({ title, description, shipments = [], empty, dang
       )}
     </section>
   );
+}
+
+function formatDateTime(value) {
+  return INDIA_DATE_TIME_FORMATTER.format(new Date(value));
 }

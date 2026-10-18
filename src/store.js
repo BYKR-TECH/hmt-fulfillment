@@ -176,10 +176,7 @@ export async function upsertWixOrder(order) {
 }
 
 export async function upsertWixOrders(orders) {
-  const results = [];
-  for (const order of orders) {
-    results.push(await upsertWixOrder(order));
-  }
+  const results = await Promise.all(orders.map(upsertWixOrder));
   return results.filter(Boolean);
 }
 
@@ -187,8 +184,7 @@ export async function upsertWixFulfillmentTracking(order, fulfillments = []) {
   const trackedFulfillments = fulfillments.filter(fulfillment => fulfillment?.trackingInfo?.trackingNumber);
   if (!trackedFulfillments.length) return { persisted: 0 };
 
-  let persisted = 0;
-  for (const fulfillment of trackedFulfillments) {
+  const persistedResults = await Promise.all(trackedFulfillments.map(async fulfillment => {
     const tracking = fulfillment.trackingInfo || {};
     const shipment = await upsertShipment({
       dbOrderId: order.id,
@@ -213,8 +209,7 @@ export async function upsertWixFulfillmentTracking(order, fulfillments = []) {
     });
 
     if (shipment?.writeSkipped) {
-      if (shipment) persisted += 1;
-      continue;
+      return shipment ? 1 : 0;
     }
 
     await updateOrderWixFulfillment(order.id, {
@@ -223,10 +218,10 @@ export async function upsertWixFulfillmentTracking(order, fulfillments = []) {
       syncedAt: new Date().toISOString(),
       error: null
     });
-    if (shipment) persisted += 1;
-  }
+    return shipment ? 1 : 0;
+  }));
 
-  return { persisted };
+  return { persisted: persistedResults.reduce((total, count) => total + count, 0) };
 }
 
 export async function packOrder(orderId) {
@@ -351,8 +346,7 @@ export async function saveTrackingEvents(shipmentId, events) {
   const supabase = getSupabaseClient();
   if (!supabase || !events.length) return 0;
 
-  let inserted = 0;
-  for (const event of events) {
+  const insertedResults = await Promise.all(events.map(async event => {
     try {
       await supabase.insert('shipment_events', {
         shipment_id: shipmentId,
@@ -363,13 +357,14 @@ export async function saveTrackingEvents(shipmentId, events) {
         occurred_at: event.occurred_at || new Date().toISOString(),
         raw_event: event.raw_event || {}
       });
-      inserted += 1;
+      return 1;
     } catch (error) {
       // Unique-constraint violation means we already have this event — skip
       if (!isUniqueViolation(error)) throw error;
+      return 0;
     }
-  }
-  return inserted;
+  }));
+  return insertedResults.reduce((total, count) => total + count, 0);
 }
 
 /**
@@ -495,8 +490,10 @@ async function syncOrderShipmentSummary(supabase, shipment) {
 export async function reconcileOrderShipments(orderId) {
   const supabase = getSupabaseClient();
   if (!supabase) return;
-  const legs = await supabase.select('shipments', `order_id=eq.${orderId}&order=created_at.desc`);
-  const orders = await supabase.select('orders', `id=eq.${orderId}&select=id,status,payment_status,internal_status`);
+  const [legs, orders] = await Promise.all([
+    supabase.select('shipments', `order_id=eq.${orderId}&order=created_at.desc`),
+    supabase.select('orders', `id=eq.${orderId}&select=id,status,payment_status,internal_status`)
+  ]);
   const patch = buildRecoverySummary(orders[0] || {}, legs);
   if (Object.keys(patch).length) await supabase.patch('orders', `id=eq.${orderId}`, patch);
   return patch;
@@ -504,14 +501,14 @@ export async function reconcileOrderShipments(orderId) {
 
 async function upsertSupabaseWixOrder(supabase, order) {
   const normalized = normalizeWixOrder(order, getConfig());
-  const existingOrder = await findSupabaseOrderByWixId(supabase, normalized.order.wix_order_id);
-  const customer = await upsertCustomer(supabase, normalized.customer);
-  const shippingAddress = existingOrder?.shipping_address_id
-    ? { id: existingOrder.shipping_address_id }
-    : await insertAddress(supabase, customer.id, normalized.shippingAddress);
-  const billingAddress = existingOrder?.billing_address_id
-    ? { id: existingOrder.billing_address_id }
-    : await insertAddress(supabase, customer.id, normalized.billingAddress);
+  const [existingOrder, customer] = await Promise.all([
+    findSupabaseOrderByWixId(supabase, normalized.order.wix_order_id),
+    upsertCustomer(supabase, normalized.customer)
+  ]);
+  const [shippingAddress, billingAddress] = await Promise.all([
+    existingOrder?.shipping_address_id ? Promise.resolve({ id: existingOrder.shipping_address_id }) : insertAddress(supabase, customer.id, normalized.shippingAddress),
+    existingOrder?.billing_address_id ? Promise.resolve({ id: existingOrder.billing_address_id }) : insertAddress(supabase, customer.id, normalized.billingAddress)
+  ]);
   const orderRow = {
     ...normalized.order,
     ...buildWixCrmStatusPatch(existingOrder, normalized.order),
@@ -522,7 +519,7 @@ async function upsertSupabaseWixOrder(supabase, order) {
   };
   const savedOrder = await supabase.upsert('orders', orderRow, 'wix_order_id');
 
-  for (const item of normalized.items) {
+  await Promise.all(normalized.items.map(async item => {
     await supabase.upsert('order_items', { ...item, order_id: savedOrder.id }, 'order_id,wix_line_item_id');
     if (item.sku) {
       await supabase.upsert(
@@ -536,7 +533,7 @@ async function upsertSupabaseWixOrder(supabase, order) {
         'sku'
       );
     }
-  }
+  }));
 
   await supabase.upsert('payment_refs', { ...normalized.payment, order_id: savedOrder.id }, 'order_id');
   await writeAudit(
@@ -902,23 +899,20 @@ export async function upsertAmazonOrder(amazonPayload) {
 }
 
 export async function upsertAmazonOrders(orders) {
-  const results = [];
-  for (const order of orders) {
-    results.push(await upsertAmazonOrder(order));
-  }
+  const results = await Promise.all(orders.map(upsertAmazonOrder));
   return results.filter(Boolean);
 }
 
 async function upsertSupabaseAmazonOrder(supabase, amazonPayload) {
   const normalized = normalizeAmazonOrder(amazonPayload, getConfig());
-  const existingOrder = await findSupabaseOrderByAmazonId(supabase, normalized.order.external_order_id);
-  const customer = await upsertAmazonCustomer(supabase, normalized.customer);
-  const shippingAddress = existingOrder?.shipping_address_id
-    ? { id: existingOrder.shipping_address_id }
-    : await insertAddress(supabase, customer.id, normalized.shippingAddress);
-  const billingAddress = existingOrder?.billing_address_id
-    ? { id: existingOrder.billing_address_id }
-    : await insertAddress(supabase, customer.id, normalized.billingAddress);
+  const [existingOrder, customer] = await Promise.all([
+    findSupabaseOrderByAmazonId(supabase, normalized.order.external_order_id),
+    upsertAmazonCustomer(supabase, normalized.customer)
+  ]);
+  const [shippingAddress, billingAddress] = await Promise.all([
+    existingOrder?.shipping_address_id ? Promise.resolve({ id: existingOrder.shipping_address_id }) : insertAddress(supabase, customer.id, normalized.shippingAddress),
+    existingOrder?.billing_address_id ? Promise.resolve({ id: existingOrder.billing_address_id }) : insertAddress(supabase, customer.id, normalized.billingAddress)
+  ]);
   const orderRow = {
     ...normalized.order,
     customer_id: customer.id,
@@ -928,7 +922,7 @@ async function upsertSupabaseAmazonOrder(supabase, amazonPayload) {
   };
   const savedOrder = await supabase.upsert('orders', orderRow, 'source,external_order_id');
 
-  for (const item of normalized.items) {
+  await Promise.all(normalized.items.map(async item => {
     await supabase.upsert('order_items', { ...item, order_id: savedOrder.id }, 'order_id,wix_line_item_id');
     if (item.sku) {
       await supabase.upsert(
@@ -942,7 +936,7 @@ async function upsertSupabaseAmazonOrder(supabase, amazonPayload) {
         'sku'
       );
     }
-  }
+  }));
 
   await supabase.upsert('payment_refs', { ...normalized.payment, order_id: savedOrder.id }, 'order_id');
   await writeAudit(
@@ -994,24 +988,21 @@ export async function upsertWooCommerceOrder(wooPayload) {
 }
 
 export async function upsertWooCommerceOrders(orders) {
-  const results = [];
-  for (const order of orders) {
-    results.push(await upsertWooCommerceOrder(order));
-  }
+  const results = await Promise.all(orders.map(upsertWooCommerceOrder));
   return results.filter(Boolean);
 }
 
 async function upsertSupabaseWooCommerceOrder(supabase, wooPayload) {
   const normalized = normalizeWooCommerceOrder(wooPayload, getConfig());
   const wooOrderId = normalized.order.woo_order_id;
-  const existingOrder = await findSupabaseOrderByWooId(supabase, wooOrderId);
-  const customer = await upsertAmazonCustomer(supabase, normalized.customer);
-  const shippingAddress = existingOrder?.shipping_address_id
-    ? { id: existingOrder.shipping_address_id }
-    : await insertAddress(supabase, customer.id, normalized.shippingAddress);
-  const billingAddress = existingOrder?.billing_address_id
-    ? { id: existingOrder.billing_address_id }
-    : await insertAddress(supabase, customer.id, normalized.billingAddress);
+  const [existingOrder, customer] = await Promise.all([
+    findSupabaseOrderByWooId(supabase, wooOrderId),
+    upsertAmazonCustomer(supabase, normalized.customer)
+  ]);
+  const [shippingAddress, billingAddress] = await Promise.all([
+    existingOrder?.shipping_address_id ? Promise.resolve({ id: existingOrder.shipping_address_id }) : insertAddress(supabase, customer.id, normalized.shippingAddress),
+    existingOrder?.billing_address_id ? Promise.resolve({ id: existingOrder.billing_address_id }) : insertAddress(supabase, customer.id, normalized.billingAddress)
+  ]);
 
   const orderRow = {
     ...normalized.order,
@@ -1032,7 +1023,7 @@ async function upsertSupabaseWooCommerceOrder(supabase, wooPayload) {
     savedOrder = await supabase.upsert('orders', withoutWooColumn, 'source,external_order_id');
   }
 
-  for (const item of normalized.items) {
+  await Promise.all(normalized.items.map(async item => {
     await supabase.upsert('order_items', { ...item, order_id: savedOrder.id }, 'order_id,wix_line_item_id');
     if (item.sku) {
       await supabase.upsert(
@@ -1046,7 +1037,7 @@ async function upsertSupabaseWooCommerceOrder(supabase, wooPayload) {
         'sku'
       );
     }
-  }
+  }));
 
   await supabase.upsert('payment_refs', { ...normalized.payment, order_id: savedOrder.id }, 'order_id');
   await writeAudit(

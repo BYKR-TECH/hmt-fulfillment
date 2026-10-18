@@ -4,9 +4,8 @@ import { requirePermission } from '@/lib/current-user';
 import { ROLE_TEMPLATES } from '@/lib/access-control';
 
 export async function PATCH(request, { params }) {
-  const actor = await requirePermission('admin');
-  const { id } = await params;
-  const body = await request.json(); const db = createServiceClient();
+  const [actor, { id }, body] = await Promise.all([requirePermission('admin'), params, request.json()]);
+  const db = createServiceClient();
   const { data: target } = await db.from('users').select('*').eq('id', id).maybeSingle();
   if (!target) return NextResponse.json({ ok: false, error: 'User not found.' }, { status: 404 });
   if (body.action === 'reset_password') {

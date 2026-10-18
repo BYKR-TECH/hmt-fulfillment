@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/lib/crm/data';
+import { TableHead } from './table-head';
 
 export function OrderContents({ order, items, compact = false }) {
   const contents = normalizedContents(order, items);
@@ -23,15 +24,7 @@ export function OrderContents({ order, items, compact = false }) {
   return (
     <div className="tableWrap">
       <table className="contentsTable">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>SKU</th>
-            <th>HSN</th>
-            <th>Qty</th>
-            <th>Line value</th>
-          </tr>
-        </thead>
+        <TableHead columns={['Item', 'SKU', 'HSN', 'Qty', 'Line value']} />
         <tbody>
           {contents.map(item => (
             <tr key={item.id}>

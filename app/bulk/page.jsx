@@ -11,6 +11,7 @@ export default function BulkPage() {
       <iframe
         src={BULK_DOCUMENT_URL}
         title="Hold My Throttle B2B bulk orders"
+        sandbox="allow-scripts allow-popups"
         style={{ border: 0, display: 'block', height: '100%', width: '100%' }}
       />
     </main>

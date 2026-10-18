@@ -8,8 +8,7 @@ export async function GET(_request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
-  const { id } = await params;
-  const payload = await request.json();
+  const [{ id }, payload] = await Promise.all([params, request.json()]);
   const result = await updateOrder(id, payload);
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }

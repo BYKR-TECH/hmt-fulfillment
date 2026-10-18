@@ -65,13 +65,13 @@ export async function reconcileWooShipmentStatuses(config = getConfig(), options
     const result = await db.from('orders').select('id,source,woo_order_id,external_order_id,payment_status,status')
       .eq('source', 'woocommerce').order('id').range(offset, offset + 499);
     if (result.error) throw new Error(`Woo order lookup failed: ${result.error.message}`);
-    for (const order of result.data || []) {
+    await Promise.all((result.data || []).map(async order => {
       summary.checked++;
       try {
         const status = await reconcileWooOrderStatus(order, config, { ...options, db });
         if (status.changed) summary.changed++; else summary.skipped++;
       } catch (error) { summary.errors.push(`${order.woo_order_id || order.external_order_id}: ${error.message}`); }
-    }
+    }));
     if ((result.data || []).length < 500) break;
   }
   return summary;

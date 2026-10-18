@@ -6,7 +6,7 @@ export async function fetchShiprocketTracking(waybills, config) {
 
   const token = await getShiprocketToken(config);
 
-  for (const waybill of waybills) {
+  await Promise.all(waybills.map(async waybill => {
     const { response, body } = await fetchShiprocketTrackingByAwb(waybill, token, config);
     if (!response.ok) {
       if (response.status === 401 && config.shiprocket.token && canLogin(config)) {
@@ -14,7 +14,7 @@ export async function fetchShiprocketTracking(waybills, config) {
         const retry = await fetchShiprocketTrackingByAwb(waybill, refreshedToken, config);
         if (retry.response.ok) {
           result.set(waybill, retry.body?.tracking_data || retry.body);
-          continue;
+          return;
         }
         throw new Error(`Shiprocket tracking API failed for AWB ${waybill} (${retry.response.status}): ${JSON.stringify(retry.body)}`);
       }
@@ -22,7 +22,7 @@ export async function fetchShiprocketTracking(waybills, config) {
     }
 
     result.set(waybill, body?.tracking_data || body);
-  }
+  }));
 
   return result;
 }

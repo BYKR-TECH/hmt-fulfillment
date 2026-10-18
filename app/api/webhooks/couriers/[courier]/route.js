@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request, { params }) {
-  const { courier } = await params;
-  const rawBody = await request.clone().text();
+  const [{ courier }, rawBody] = await Promise.all([params, request.clone().text()]);
   let payload;
   try {
     payload = JSON.parse(rawBody);

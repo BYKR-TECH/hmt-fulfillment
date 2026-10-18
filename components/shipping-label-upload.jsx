@@ -18,8 +18,8 @@ export function ShippingLabelUpload({ orderId, shipments = [] }) {
     if (shipmentId) body.set('shipment_id', shipmentId);
     try {
       const response = await fetch(`/api/crm/orders/${orderId}/shipping-label`, { method: 'POST', body });
-      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
         setMessage(result.error || 'Shipping-label upload failed.');
         return;
       }

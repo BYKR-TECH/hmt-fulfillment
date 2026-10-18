@@ -1,6 +1,7 @@
 import { AppShell } from '@/components/app-shell';
 import { StatusPill } from '@/components/status-pill';
 import { listIntegrationErrors } from '@/lib/crm/data';
+import { TableHead } from '@/components/table-head';
 
 export default async function IntegrationErrorsPage() {
   const errors = await listIntegrationErrors();
@@ -16,7 +17,7 @@ export default async function IntegrationErrorsPage() {
       <section className="panel">
         <div className="tableWrap">
           <table>
-            <thead><tr><th>When</th><th>Integration</th><th>Operation</th><th>Status</th><th>Message</th></tr></thead>
+            <TableHead columns={['When', 'Integration', 'Operation', 'Status', 'Message']} />
             <tbody>
               {errors.map(error => (
                 <tr key={error.id}>

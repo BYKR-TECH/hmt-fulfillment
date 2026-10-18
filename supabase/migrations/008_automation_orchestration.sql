@@ -24,6 +24,8 @@ create table if not exists automation_runs (
   raw_result jsonb not null default '{}'::jsonb
 );
 
+alter table automation_runs enable row level security;
+
 create table if not exists automation_action_attempts (
   id uuid primary key default gen_random_uuid(),
   action_key text not null unique,
@@ -38,6 +40,8 @@ create table if not exists automation_action_attempts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table automation_action_attempts enable row level security;
 
 create index if not exists idx_automation_action_attempts_order on automation_action_attempts(order_id, action_type);
 create index if not exists idx_automation_action_attempts_status on automation_action_attempts(status, next_retry_at);
@@ -60,6 +64,8 @@ create table if not exists customer_messages (
   unique(order_id, message_type, channel)
 );
 
+alter table customer_messages enable row level security;
+
 create index if not exists idx_customer_messages_order on customer_messages(order_id);
 create index if not exists idx_customer_messages_status on customer_messages(status);
 
@@ -72,6 +78,8 @@ create table if not exists fedex_export_batches (
   updated_at timestamptz not null default now()
 );
 
+alter table fedex_export_batches enable row level security;
+
 create table if not exists fedex_export_items (
   id uuid primary key default gen_random_uuid(),
   batch_id uuid references fedex_export_batches(id) on delete cascade,
@@ -83,6 +91,8 @@ create table if not exists fedex_export_items (
   updated_at timestamptz not null default now(),
   unique(order_id)
 );
+
+alter table fedex_export_items enable row level security;
 
 create index if not exists idx_fedex_export_items_batch on fedex_export_items(batch_id);
 create index if not exists idx_fedex_export_items_status on fedex_export_items(status);

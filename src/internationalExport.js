@@ -229,23 +229,25 @@ function createXlsxWorkbook(sheetName, rows, { textColumns = [] } = {}) {
 function renderWorksheet(rows, textColumns = []) {
   const maxColumns = Math.max(1, ...rows.map(row => row.length));
   const dimension = `A1:${columnName(maxColumns)}${Math.max(1, rows.length)}`;
+  const textColumnSet = new Set(textColumns);
   const textColumnNumbers = rows[0]
-    .map((header, index) => textColumns.includes(header) ? index + 1 : null)
+    .map((header, index) => textColumnSet.has(header) ? index + 1 : null)
     .filter(Boolean);
+  const textColumnNumberSet = new Set(textColumnNumbers);
   return [
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
     ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
     `<dimension ref="${dimension}"/>`,
     '<sheetData>',
-    ...rows.map((row, rowIndex) => renderXlsxRow(row, rowIndex + 1, textColumnNumbers)),
+    ...rows.map((row, rowIndex) => renderXlsxRow(row, rowIndex + 1, textColumnNumberSet)),
     '</sheetData>',
     '</worksheet>'
   ].join('');
 }
 
 function renderXlsxRow(values, rowNumber, textColumnNumbers) {
-  return `<row r="${rowNumber}">${values.map((value, index) => renderXlsxCell(value, rowNumber, index + 1, textColumnNumbers.includes(index + 1))).join('')}</row>`;
+  return `<row r="${rowNumber}">${values.map((value, index) => renderXlsxCell(value, rowNumber, index + 1, textColumnNumbers.has(index + 1))).join('')}</row>`;
 }
 
 function renderXlsxCell(value, rowNumber, columnNumber, forceText = false) {

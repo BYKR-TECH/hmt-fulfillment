@@ -24,5 +24,8 @@ async function loadSettings() {
   if (!supabase) return {};
   const { data, error } = await supabase.from('crm_settings').select('key,value');
   if (error) return {};
-  return (data || []).reduce((settings, row) => ({ ...settings, [row.key]: row.value }), {});
+  return (data || []).reduce((settings, row) => {
+    settings[row.key] = row.value;
+    return settings;
+  }, {});
 }

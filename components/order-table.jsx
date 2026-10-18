@@ -39,10 +39,7 @@ export function OrderFilters({ query = '', status = '', source = '', action = '/
         </select>
       </label>
       ) : null}
-      <label>
-        <span>&nbsp;</span>
-        <button type="submit">Apply</button>
-      </label>
+      <div><span aria-hidden="true">&nbsp;</span><button type="submit">Apply</button></div>
     </form>
   );
 }

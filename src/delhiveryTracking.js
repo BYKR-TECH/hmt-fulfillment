@@ -302,10 +302,10 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
       continue; // skip this batch, try the next
     }
 
-    for (const shipment of batch) {
+    await Promise.all(batch.map(async shipment => {
       state.lastPolled += 1;
       const pkg = trackingMap.get(shipment.waybill) || trackingMap.get(normalizeWaybillKey(shipment.waybill));
-      if (!pkg) continue;
+      if (!pkg) return;
 
       const liveStatus = courierCode === 'delhivery'
         ? normalizeDelhiveryStatus(getCourierLiveStatus(courierCode, pkg), pkg?.Status?.StatusType || pkg?.status?.StatusType)
@@ -349,7 +349,7 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
           logger.error?.(warning);
         }
       }
-    }
+    }));
   }
 }
 

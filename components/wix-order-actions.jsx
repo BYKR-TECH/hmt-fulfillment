@@ -18,8 +18,12 @@ export function WixOrderActions({ order }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(options.body || {})
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error(result.error || 'Wix action failed.');
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Wix action failed.');
+      }
+      const result = await response.json();
+      if (result.ok === false) throw new Error(result.error || 'Wix action failed.');
       router.refresh();
       setState({ action: '', message: options.success });
     } catch (error) {

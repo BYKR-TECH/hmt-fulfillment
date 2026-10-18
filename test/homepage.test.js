@@ -25,7 +25,7 @@ async function renderHomepage({ orders = [] } = {}) {
     '@/components/status-pill': { StatusPill: ({ value }) => React.createElement('span', null, value) },
     '@/lib/crm/data': {
       getDashboardSummary: async () => summary,
-      listOrders: async options => { assert.deepEqual(JSON.parse(JSON.stringify(options)), { limit: 8 }); return orders; }
+      listOrders: async options => { assert.deepEqual(structuredClone(options), { limit: 8 }); return orders; }
     }
   };
   const { code } = transformSync(readFileSync(new URL('../app/page.jsx', import.meta.url), 'utf8'), {

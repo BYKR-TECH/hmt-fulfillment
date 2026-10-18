@@ -12,14 +12,8 @@ export function WixAutoSync() {
     if (lastRun && Date.now() - lastRun < minIntervalMs) return;
     window.localStorage.setItem(STORAGE_KEY, String(Date.now()));
 
-    fetch('/api/integrations/wix/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: 'crm-open' }),
-      keepalive: true
-    }).catch(() => {
-      window.localStorage.removeItem(STORAGE_KEY);
-    });
+    const body = new Blob([JSON.stringify({ reason: 'crm-open' })], { type: 'application/json' });
+    if (!navigator.sendBeacon('/api/integrations/wix/sync', body)) window.localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   return null;

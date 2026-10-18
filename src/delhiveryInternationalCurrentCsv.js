@@ -172,7 +172,8 @@ function validationIssues(row, headers, service, data) {
   const required = service === 'premium'
     ? ['order_no*^', 'client_name*^', 'weight*^', 'length*^', 'breadth*^', 'height*^', 'invoice_no*^', 'invoice_date*^', 'hsn_code*^', 'consignee_name*^', 'consignee_phone*^', 'consignee_address*^', 'consignee_city*^', 'consignee_country*^', 'consignee_pincode*^', 'pickup_warehouse_ID*^', 'box_weights*^']
     : ['Order No', 'Pickup Facility Name', 'Destination Country', 'Consignee Name', 'Street Address 1', 'Consignee City', 'Consignee Pincode', 'Consignee Phone', 'Invoice No', 'Invoice Date (YYYY-MM-DD)', 'Length (cm)', 'Breadth (cm)', 'Height (cm)', 'Box Weight (Kg)', 'Product Description', 'Quantity', 'Unit Price', 'Product Amount', 'HSN Code'];
-  const issues = required.filter(header => headers.includes(header) && blank(row[header])).map(header => ({ level: 'error', field: header, message: `${header} is required for this ${service} template.` }));
+  const headerSet = new Set(headers);
+  const issues = required.filter(header => headerSet.has(header) && blank(row[header])).map(header => ({ level: 'error', field: header, message: `${header} is required for this ${service} template.` }));
   if (service === 'premium' && Number(data.productAmount) >= 50000 && blank(row.EWBN)) issues.push({ level: 'error', field: 'EWBN', message: 'EWBN is required when the commercial consignment value is ₹50,000 or above.' });
   if (service === 'premium' && row['type_of_shipment*^'] === 'commercial') {
     if (blank(row.igst_payment_status)) issues.push({ level: 'error', field: 'igst_payment_status', message: 'IGST payment status is required for a commercial Premium shipment.' });

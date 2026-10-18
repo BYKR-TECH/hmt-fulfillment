@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 
 export function WixRefreshButton() {
   const router = useRouter();
   const [state, setState] = useState({ running: false, message: '' });
+  const runningRef = useRef(false);
 
   async function refreshWixOrders() {
-    if (state.running) return;
+    if (runningRef.current) return;
+    runningRef.current = true;
     setState({ running: true, message: '' });
 
     try {
@@ -18,8 +20,12 @@ export function WixRefreshButton() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'manual-refresh', force: true })
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error(result.error || 'Wix sync failed.');
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Wix sync failed.');
+      }
+      const result = await response.json();
+      if (result.ok === false) throw new Error(result.error || 'Wix sync failed.');
       router.refresh();
       setState({
         running: false,
@@ -27,6 +33,8 @@ export function WixRefreshButton() {
       });
     } catch (error) {
       setState({ running: false, message: error.message || 'Refresh failed' });
+    } finally {
+      runningRef.current = false;
     }
   }
 

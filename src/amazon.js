@@ -242,11 +242,15 @@ export async function confirmAmazonShipment(orderId, waybill, carrierCode, shipp
     })
   });
 
-  const responseText = await response.text();
-  const body = responseText ? JSON.parse(responseText) : {};
   if (!response.ok) {
+    const body = await readResponseBody(response);
     throw new Error(`Amazon shipment confirmation failed (${response.status}): ${JSON.stringify(body)}`);
   }
 
-  return body;
+  return readResponseBody(response);
+}
+
+async function readResponseBody(response) {
+  const responseText = await response.text();
+  return responseText ? JSON.parse(responseText) : {};
 }

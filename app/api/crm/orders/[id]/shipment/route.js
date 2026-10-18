@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { bookShipment } from '@/lib/crm/data';
 
 export async function POST(request, { params }) {
-  const { id } = await params;
-  const { payload, nativeForm } = await parsePayload(request);
+  const [{ id }, { payload, nativeForm }] = await Promise.all([params, parsePayload(request)]);
   const result = await bookShipment(id, payload);
   if (nativeForm) {
     const url = new URL(`/orders/${id}`, request.url);

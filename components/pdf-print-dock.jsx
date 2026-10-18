@@ -18,7 +18,12 @@ export function PdfPrintDock({ embedded = false }) {
     data.set('file', file);
     try {
       const response = await fetch('/api/crm/print', { method: 'POST', body: data });
-      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        setMessage(result.error || 'Print failed.');
+        return;
+      }
+      const result = await response.json();
       setMessage(result.message || result.error || (response.ok ? 'Print job queued.' : 'Print failed.'));
       if (response.ok) {
         setFile(null);

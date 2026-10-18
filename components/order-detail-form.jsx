@@ -15,25 +15,29 @@ export function OrderDetailForm({ order, section = 'order', label }) {
     setSaving(true);
     setMessage('');
     const body = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const response = await fetch(`/api/crm/orders/${order.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await response.json();
-    setSaving(false);
-    if (!response.ok) {
-      setMessage(data.error || 'Save failed.');
-      return;
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMessage(data.error || 'Save failed.');
+        return;
+      }
+      const data = await response.json();
+      const warnings = [...(data.warnings || [])];
+      if (data.skipped_columns?.length) warnings.push(`Missing CRM columns: ${data.skipped_columns.join(', ')}`);
+      if (warnings.length) {
+        setMessage(`Saved with warnings. ${warnings.join(' ')}`);
+        return;
+      }
+      dialogRef.current?.close();
+      window.location.reload();
+    } finally {
+      setSaving(false);
     }
-    const warnings = [...(data.warnings || [])];
-    if (data.skipped_columns?.length) warnings.push(`Missing CRM columns: ${data.skipped_columns.join(', ')}`);
-    if (warnings.length) {
-      setMessage(`Saved with warnings. ${warnings.join(' ')}`);
-      return;
-    }
-    dialogRef.current?.close();
-    window.location.reload();
   }
 
   return (
@@ -41,7 +45,7 @@ export function OrderDetailForm({ order, section = 'order', label }) {
       <button className="iconButton" type="button" title={`Edit ${title}`} aria-label={`Edit ${title}`} onClick={() => dialogRef.current?.showModal()}>
         <Pencil size={16} />
       </button>
-      <dialog className="editDialog" ref={dialogRef} onClose={() => setMessage('')}>
+      <dialog className="editDialog" ref={dialogRef} onClose={() => setMessage('')} aria-label={`Edit ${title}`}>
         <div className="editDialogHeader">
           <div>
             <p className="eyebrow">Edit order</p>
@@ -67,14 +71,19 @@ export function OrderDetailForm({ order, section = 'order', label }) {
 }
 
 function SectionFields({ section, order }) {
-  if (section === 'customer') return <>
+  const Fields = SECTION_FIELDS[section] || OrderFields;
+  return <Fields order={order} />;
+}
+
+function CustomerFields({ order }) { return <>
     <Field name="customer_name" label="Customer name" value={order.customer_name} />
     <Field name="phone" label="Phone" value={order.phone} />
     <Field name="email" label="Email" value={order.email} />
     <Field name="buyer_gst" label="Buyer GST / VAT ID" value={order.buyer_gst} />
     <Field name="buyer_gst_type" label="GST / VAT type" value={order.buyer_gst_type || (order.buyer_gst ? 'GSTIN' : '')} />
-  </>;
-  if (section === 'addresses') return <>
+  </>; }
+
+function AddressFields({ order }) { return <>
     <FieldGroup title="Shipping address">
       <Field name="shipping_name" label="Recipient" value={order.shipping_name || order.customer_name} />
       <Field name="shipping_phone" label="Phone" value={order.shipping_phone || order.phone} />
@@ -91,18 +100,21 @@ function SectionFields({ section, order }) {
       <Field name="billing_state" label="State" value={order.billing_state} />
       <Field name="billing_pincode" label="Pincode" value={order.billing_pincode} />
     </FieldGroup>
-  </>;
-  if (section === 'payment') return <>
+  </>; }
+
+function PaymentFields({ order }) { return <>
     <Field name="order_value" label="Order value" type="number" value={order.order_value} />
     <Select name="payment_status" label="Payment status" value={order.payment_status} options={PAYMENT_STATUSES} />
-  </>;
-  if (section === 'delivery') return <>
+  </>; }
+
+function DeliveryFields({ order }) { return <>
     <Select name="delivery_method" label="Kit handoff" value={order.delivery_method} options={DELIVERY_METHODS} labels={DELIVERY_METHOD_LABELS} />
     <Select name="courier" label="Courier" value={order.courier} options={['', ...COURIERS]} />
     <Field name="awb_number" label="AWB / Porter reference" value={order.awb_number} />
     <Field name="tracking_url" label="Tracking link" value={order.tracking_url} />
-  </>;
-  if (section === 'installation') return <>
+  </>; }
+
+function InstallationFields({ order }) { return <>
     <Select name="installation_method" label="Installation plan" value={order.installation_method} options={INSTALLATION_METHODS} labels={INSTALLATION_METHOD_LABELS} />
     <Select name="installation_status" label="Installation status" value={order.installation_status} options={INSTALLATION_STATUSES} />
     <Field name="install_location" label="Workshop / install location" value={order.install_location} />
@@ -111,9 +123,11 @@ function SectionFields({ section, order }) {
     <Field name="garage_phone" label="Garage phone" value={order.garage_phone} />
     <Field name="garage_address" label="Garage address" value={order.garage_address} />
     <Field name="garage_city" label="Garage city" value={order.garage_city} />
-  </>;
-  if (section === 'feedback') return <Select name="feedback_status" label="Feedback status" value={order.feedback_status} options={FEEDBACK_STATUSES} />;
-  return <>
+  </>; }
+
+function FeedbackFields({ order }) { return <Select name="feedback_status" label="Feedback status" value={order.feedback_status} options={FEEDBACK_STATUSES} />; }
+
+function OrderFields({ order }) { return <>
     <Field name="bike_model" label="Bike model" value={order.bike_model} />
     <Field name="product_variant" label="Product variant" value={order.product_variant} />
     <Field name="quantity" label="Quantity" type="number" value={order.quantity} />
@@ -121,8 +135,7 @@ function SectionFields({ section, order }) {
     <Field name="assigned_operator" label="Assigned operator" value={order.assigned_operator} />
     <Field name="tags" label="Tags" value={(order.tags || []).join(', ')} />
     <label className="full"><span>Notes</span><textarea name="notes" defaultValue={order.notes} /></label>
-  </>;
-}
+  </>; }
 
 function Field({ name, label, value = '', type = 'text' }) {
   return <label><span>{label}</span><input name={name} type={type} defaultValue={value || ''} /></label>;
@@ -137,5 +150,6 @@ function Select({ name, label, value = '', options, labels = {} }) {
 }
 
 const SECTION_TITLES = { customer: 'Customer', addresses: 'Addresses', order: 'Order details', payment: 'Payment', delivery: 'Delivery / pickup', installation: 'Installation', feedback: 'Feedback' };
+const SECTION_FIELDS = { customer: CustomerFields, addresses: AddressFields, payment: PaymentFields, delivery: DeliveryFields, installation: InstallationFields, feedback: FeedbackFields, order: OrderFields };
 const DELIVERY_METHOD_LABELS = { unknown: 'Not selected', courier: 'Courier delivery', porter: 'Porter / Bengaluru quick delivery', hand_off: 'Customer pickup from workshop', install_at_hsr: 'Install directly at HSR workshop', install_at_cv_raman: 'Install directly at CV Raman Nagar workshop' };
 const INSTALLATION_METHOD_LABELS = { unknown: 'Not selected', diy: 'Customer installs themselves', nearby_garage: 'Customer-selected garage', hmt_bengaluru_store: 'HMT Bengaluru workshop' };

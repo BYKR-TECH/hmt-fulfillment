@@ -7,21 +7,19 @@ import { fetchFedexRateQuote } from '@/src/fedexRates.js';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request, { params }) {
-  const { id } = await params;
+  const [{ id }, body] = await Promise.all([params, request.json().catch(() => ({}))]);
   const supabase = createServiceClient();
   if (!supabase) return Response.json({ ok: false, error: 'Supabase service client is not configured.' }, { status: 503 });
 
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*, customers(*), shipping_address:customer_addresses!orders_shipping_address_id_fkey(*)')
-    .eq('id', id)
-    .maybeSingle();
+  const [orderResult, settings] = await Promise.all([
+    supabase.from('orders').select('*, customers(*), shipping_address:customer_addresses!orders_shipping_address_id_fkey(*)').eq('id', id).maybeSingle(),
+    loadCrmSettings(supabase)
+  ]);
+  const { data: order, error } = orderResult;
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   if (!order) notFound();
 
-  const body = await request.json().catch(() => ({}));
-  const settings = await loadCrmSettings(supabase);
   const config = applyCrmSettingsToConfig(getConfig(), settings);
 
   try {

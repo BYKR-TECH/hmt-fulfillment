@@ -11,7 +11,12 @@ export function PrintLabelButton({ shipmentId, disabled = false }) {
     setMessage('');
     try {
       const response = await fetch(`/api/crm/shipments/${shipmentId}/print`, { method: 'POST' });
-      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        setMessage(result.error || 'Print job failed.');
+        return;
+      }
+      const result = await response.json();
       setMessage(result.message || result.error || (response.ok ? 'Print job queued.' : 'Print job failed.'));
     } catch {
       setMessage('Could not contact the print service.');

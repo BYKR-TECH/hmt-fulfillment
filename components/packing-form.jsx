@@ -13,14 +13,22 @@ export function PackingForm({ order, checklist = [] }) {
     setBusy(true);
     setMessage('');
     const body = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const response = await fetch(`/api/crm/orders/${order.id}/packing`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await response.json();
-    setBusy(false);
-    setMessage(response.ok ? (data.demo ? 'Checklist validated in demo mode.' : 'Packing checklist saved.') : data.error || 'Packing update failed.');
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/packing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMessage(data.error || 'Packing update failed.');
+        return;
+      }
+      const data = await response.json();
+      setMessage(data.demo ? 'Checklist validated in demo mode.' : 'Packing checklist saved.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

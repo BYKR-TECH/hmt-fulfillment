@@ -40,7 +40,7 @@ async function summaryWithQueries({ legacy = false } = {}) {
     if (name === './order-display.js') return { orderDisplayDetails };
     return {};
   } });
-  return { summary: JSON.parse(JSON.stringify(await exports.getDashboardSummary())), queries };
+  return { summary: structuredClone(await exports.getDashboardSummary()), queries };
 }
 
 test('narrow dashboard query preserves counters and latest shipment overrides', async () => {

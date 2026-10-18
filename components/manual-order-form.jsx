@@ -10,19 +10,23 @@ export function ManualOrderForm() {
     event.preventDefault();
     setBusy(true);
     setMessage('');
-    const response = await fetch('/api/crm/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget).entries()))
-    });
-    const data = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setMessage(data.duplicate ? `Duplicate suspected: ${data.duplicate.order_number}` : data.error || 'Could not create order');
-      return;
+    try {
+      const response = await fetch('/api/crm/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget).entries()))
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMessage(data.duplicate ? `Duplicate suspected: ${data.duplicate.order_number}` : data.error || 'Could not create order');
+        return;
+      }
+      const data = await response.json();
+      event.currentTarget.reset();
+      setMessage(data.demo ? 'Manual order validated in demo mode.' : 'Manual order created.');
+    } finally {
+      setBusy(false);
     }
-    event.currentTarget.reset();
-    setMessage(data.demo ? 'Manual order validated in demo mode.' : 'Manual order created.');
   }
 
   return (
@@ -53,7 +57,7 @@ export function ManualOrderForm() {
         <textarea name="notes" />
       </label>
       <div className="toolbar full">
-        <button disabled={busy}>{busy ? 'Creating...' : 'Create manual order'}</button>
+        <button type="submit" disabled={busy}>{busy ? 'Creating...' : 'Create manual order'}</button>
         {message ? <span className="muted">{message}</span> : null}
       </div>
     </form>

@@ -18,18 +18,22 @@ export function CrmSettingsForm({ settings, supabaseConfigured }) {
     for (const key of ['whatsapp_delivery_confirmation_enabled_at', 'whatsapp_abandoned_cart_enabled_at']) {
       if (body[key]) body[key] = new Date(body[key]).toISOString();
     }
-    const response = await fetch('/api/crm/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setMessage(data.error || 'Settings update failed.');
-      return;
+    try {
+      const response = await fetch('/api/crm/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMessage(data.error || 'Settings update failed.');
+        return;
+      }
+      const data = await response.json();
+      setMessage(data.demo ? 'Settings validated in demo mode. Configure Supabase to persist.' : 'Settings saved.');
+    } finally {
+      setBusy(false);
     }
-    setMessage(data.demo ? 'Settings validated in demo mode. Configure Supabase to persist.' : 'Settings saved.');
   }
 
   const shipment = settings.shipment_defaults;

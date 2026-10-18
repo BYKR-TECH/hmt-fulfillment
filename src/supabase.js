@@ -58,11 +58,13 @@ export class SupabaseRestClient {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
 
-    const text = await response.text();
-    const payload = text ? JSON.parse(text) : null;
     if (!response.ok) {
+      const text = await response.text();
+      const payload = text ? JSON.parse(text) : null;
       throw new Error(`Supabase ${method} ${table} failed (${response.status}): ${JSON.stringify(payload)}`);
     }
+    const text = await response.text();
+    const payload = text ? JSON.parse(text) : null;
     return payload;
   }
 }

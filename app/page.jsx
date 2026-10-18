@@ -28,7 +28,7 @@ export default async function DashboardPage() {
         </div>
         <div className="toolbar">
           <form className="filters" action="/orders" style={{ margin: 0 }}>
-            <input name="q" placeholder="Name, phone, order, AWB" />
+            <label><span>Search orders</span><input name="q" placeholder="Name, phone, order, AWB" /></label>
             <button type="submit">Search</button>
           </form>
           <Link className="button secondary" href="/orders">All orders</Link>

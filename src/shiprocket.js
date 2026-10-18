@@ -170,14 +170,10 @@ export async function createShiprocketShipment(payload, config) {
     error.carrierResponse = { create_response: created, awb_response: assigned, pickup_location: payload.shipment.pickup_location };
     throw error;
   }
-  const pickup = await optionalShiprocketRequest(`${baseUrl(config)}/courier/generate/pickup`, {
-    method: 'POST',
-    body: JSON.stringify({ shipment_id: [shipmentId] })
-  }, token, config);
-  const label = await optionalShiprocketRequest(`${baseUrl(config)}/courier/generate/label`, {
-    method: 'POST',
-    body: JSON.stringify({ shipment_id: [shipmentId] })
-  }, token, config);
+  const [pickup, label] = await Promise.all([
+    optionalShiprocketRequest(`${baseUrl(config)}/courier/generate/pickup`, { method: 'POST', body: JSON.stringify({ shipment_id: [shipmentId] }) }, token, config),
+    optionalShiprocketRequest(`${baseUrl(config)}/courier/generate/label`, { method: 'POST', body: JSON.stringify({ shipment_id: [shipmentId] }) }, token, config)
+  ]);
   return {
     provider: 'shiprocket',
     order_id: created.order_id ?? created?.data?.order_id,

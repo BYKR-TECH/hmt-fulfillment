@@ -1,6 +1,7 @@
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
+import Link from 'next/link';
 import { useState } from 'react';
 
 export default function LoginPage() {
@@ -19,17 +20,20 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    const supabase = createBrowserClient(supabaseUrl, anonKey);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: form.get('email'),
-      password: form.get('password')
-    });
-    if (error) {
-      setMessage(error.message);
+    try {
+      const supabase = createBrowserClient(supabaseUrl, anonKey);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: form.get('email'),
+        password: form.get('password')
+      });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      window.location.assign('/');
+    } finally {
       setBusy(false);
-      return;
     }
-    window.location.href = new URLSearchParams(window.location.search).get('next') || '/';
   }
 
   return (
@@ -51,8 +55,8 @@ export default function LoginPage() {
               <span>Password</span>
               <input type="password" name="password" autoComplete="current-password" required />
             </label>
-            <button disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-            <a className="muted" href="/forgot-password">Forgot password?</a>
+            <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+            <Link className="muted" href="/forgot-password">Forgot password?</Link>
             {message ? <p className="muted">{message}</p> : null}
           </form>
         </div>

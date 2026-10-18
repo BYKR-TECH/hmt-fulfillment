@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 import { BOOKING_COURIERS, COURIERS } from '@/lib/crm/constants';
+import { ReplacementPartField } from './replacement-part-field';
+import { ShipmentPurposeField } from './shipment-purpose-field';
 
 export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pickupLocation = '' }) {
+  const initial = getInitialFormValues(order, pickupLocation);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [labelBusy, setLabelBusy] = useState(false);
@@ -11,24 +14,17 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   const [fedexRate, setFedexRate] = useState(null);
   const [shiprocketQuotes, setShiprocketQuotes] = useState([]);
   const [shiprocketCourierId, setShiprocketCourierId] = useState('');
-  const [courier, setCourier] = useState(order.courier || defaultCourierForOrder(order));
+  const [courier, setCourier] = useState(initial.courier);
+  const [serviceCode, setServiceCode] = useState('');
   const [shipmentType, setShipmentType] = useState('original');
   const [replacementPart, setReplacementPart] = useState('');
-  const [selectedPickupLocation, setSelectedPickupLocation] = useState(pickupLocation || 'Sis Vars');
-  const [labelUrl, setLabelUrl] = useState(order.label_url || '');
-  const [awbNumber, setAwbNumber] = useState(order.awb_number || '');
-  const [trackingUrl, setTrackingUrl] = useState(order.tracking_url || '');
-  const [deliveryDetails, setDeliveryDetails] = useState({
-    phone: order.phone || '',
-    pincode: order.pincode || '',
-    addressLine1: order.address_line1 || ''
-  });
+  const [selectedPickupLocation, setSelectedPickupLocation] = useState(initial.pickupLocation);
+  const [labelUrl, setLabelUrl] = useState(initial.labelUrl);
+  const [awbNumber, setAwbNumber] = useState(initial.awbNumber);
+  const [trackingUrl, setTrackingUrl] = useState(initial.trackingUrl);
+  const [deliveryDetails, setDeliveryDetails] = useState(initial.deliveryDetails);
   const [needsDeliveryFix, setNeedsDeliveryFix] = useState(false);
-  const selectedBookingCourier = BOOKING_COURIERS.find(item => item.code === courier);
-  const services = selectedBookingCourier?.services || [];
-  const canGenerateLabel = Boolean(labelUrl || awbNumber);
-  const hasExistingShipment = Boolean(shipments.length || order.awb_number || order.shipment_status === 'shipment_booked');
-  const wixShipmentAvailable = Boolean(order.wix_fulfillment_id || order.awb_number || order.tracking_url);
+  const { selectedBookingCourier, services, canGenerateLabel, hasExistingShipment, wixShipmentAvailable } = getFormMeta({ order, shipments, courier, labelUrl, awbNumber });
 
   async function submit(event) {
     event.preventDefault();
@@ -54,13 +50,14 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
         const error = (data.validation || [data.error || 'Shipment booking failed']).join(', ');
         setMessage(error);
         setNeedsDeliveryFix(/pincode|phone|address/i.test(error));
         return;
       }
+      const data = await response.json();
       if (data.label_url) setLabelUrl(data.label_url);
       if (data.awb_number) setAwbNumber(data.awb_number);
       if (data.tracking_url) setTrackingUrl(data.tracking_url);
@@ -90,12 +87,13 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     setLabelBusy(true);
     try {
       const response = await fetch(`/api/crm/orders/${order.id}/label`, { method: 'POST' });
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
         labelWindow?.close();
         setMessage(data.error || 'Label generation failed.');
         return;
       }
+      const data = await response.json();
       if (data.label_url) {
         setLabelUrl(data.label_url);
         if (labelWindow) labelWindow.location.replace(data.label_url);
@@ -132,20 +130,28 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     const form = new FormData(event.currentTarget.form);
     const body = Object.fromEntries(['weight_grams', 'length_cm', 'width_cm', 'height_cm', 'product_value'].map(key => [key, form.get(key)]));
     setRateBusy(true);
-    const response = await fetch(`/api/crm/orders/${order.id}/fedex-rate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await response.json().catch(() => ({}));
-    setRateBusy(false);
-    if (!response.ok || !data.ok) {
-      setMessage(data.error || 'FedEx estimate failed.');
-      return;
+    try {
+      const response = await fetch(`/api/crm/orders/${order.id}/fedex-rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMessage(data.error || 'FedEx estimate failed.');
+        return;
+      }
+      const data = await response.json();
+      if (!data.ok) {
+        setMessage(data.error || 'FedEx estimate failed.');
+        return;
+      }
+      const quote = data.quotes?.[0] || null;
+      setFedexRate(quote);
+      setMessage(quote ? 'FedEx estimate loaded.' : 'FedEx returned no rate quotes for this shipment.');
+    } finally {
+      setRateBusy(false);
     }
-    const quote = data.quotes?.[0] || null;
-    setFedexRate(quote);
-    setMessage(quote ? 'FedEx estimate loaded.' : 'FedEx returned no rate quotes for this shipment.');
   }
 
   async function getShiprocketEstimates(event) {
@@ -153,8 +159,11 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
     setMessage(''); setShiprocketQuotes([]); setShiprocketCourierId(''); setRateBusy(true);
     try {
       const response = await fetch(`/api/crm/orders/${order.id}/shipping-estimate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, courier: 'shiprocket' }) });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Estimates failed');
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Estimates failed');
       setShiprocketQuotes(data.quotes || []);
       setMessage(data.quotes?.length ? `${data.quotes.length} courier services available. Select one to book.` : 'No couriers available for this route.');
     } catch (error) { setMessage(error.message); } finally { setRateBusy(false); }
@@ -163,189 +172,92 @@ export function ShipmentForm({ order, shipments = [], packageDefaults = {}, pick
   return (
     <form id="replacement-booking" className="formGrid shipmentBookingForm" action={`/api/crm/orders/${order.id}/shipment`} method="post" onSubmit={submit}>
       <input type="hidden" name="shiprocket_courier_id" value={shiprocketCourierId} />
-      {needsDeliveryFix ? (
-        <div className="shipmentSource full" role="alert">
-          <div>
-            <strong>Fix the delivery details, then retry booking</strong>
-            <p className="muted">The courier rejected one or more delivery fields. Your entered values stay in this form for the retry.</p>
-          </div>
-        </div>
-      ) : null}
-      {needsDeliveryFix ? (
-        <>
-          <label>
-            <span>Recipient phone</span>
-            <input name="phone" value={deliveryDetails.phone} onChange={event => setDeliveryDetails(details => ({ ...details, phone: event.target.value }))} required />
-          </label>
-          <label>
-            <span>Delivery pincode</span>
-            <input name="pincode" value={deliveryDetails.pincode} onChange={event => setDeliveryDetails(details => ({ ...details, pincode: event.target.value }))} inputMode="numeric" required />
-          </label>
-          <label className="full">
-            <span>Delivery address</span>
-            <input name="address_line1" value={deliveryDetails.addressLine1} onChange={event => setDeliveryDetails(details => ({ ...details, addressLine1: event.target.value }))} required />
-          </label>
-        </>
-      ) : (
-        <>
-          <input type="hidden" name="phone" value={deliveryDetails.phone} />
-          <input type="hidden" name="pincode" value={deliveryDetails.pincode} />
-          <input type="hidden" name="address_line1" value={deliveryDetails.addressLine1} />
-        </>
-      )}
-      <input type="hidden" name="country" value={order.country || 'IN'} />
-      <div className="shipmentSource full">
-        <div>
-          <strong>{wixShipmentAvailable ? 'Wix shipment data found' : 'No Wix shipment found'}</strong>
-          <p className="muted">{wixShipmentAvailable ? [order.courier, order.awb_number, order.wix_fulfillment_id].filter(Boolean).join(' · ') : 'Book a new shipment or save a manual AWB below.'}</p>
-          {order.selected_shipping_title ? <p className="muted">Wix delivery option: <strong>{order.selected_shipping_title}</strong></p> : null}
-        </div>
-        {order.tracking_url ? <a className="button secondary" href={order.tracking_url} target="_blank" rel="noreferrer">Open Wix tracking</a> : null}
-      </div>
-      <label>
-        <span>Shipment purpose</span>
-        <select name="shipment_type" value={shipmentType} onChange={event => setShipmentType(event.target.value)}>
-          <option value="original">Original order</option>
-          <option value="replacement">Replacement outbound</option>
-          <option value="reverse">Reverse pickup</option>
-          <option value="rto">RTO movement</option>
-        </select>
-      </label>
-      {shipmentType === 'replacement' ? (
-        <label>
-          <span>Replacement part</span>
-          <select name="replacement_part" value={replacementPart} onChange={event => setReplacementPart(event.target.value)} required>
-            <option value="" disabled>Select part</option>
-            <option value="full_kit">Full kit</option>
-            <option value="switch">Switch</option>
-            <option value="control_module">Control module</option>
-            <option value="harness">Harness</option>
-          </select>
-        </label>
-      ) : null}
-      <label>
-        <span>Pickup location</span>
-        <select name="pickup_location" value={selectedPickupLocation} onChange={event => setSelectedPickupLocation(event.target.value)}>
-          {!['Sis Vars', 'HSR GDP', 'Hold My Throttle HQ', 'Sai Preetham'].includes(selectedPickupLocation) ? <option value={selectedPickupLocation}>{selectedPickupLocation}</option> : null}
-          <option value="Sis Vars">Sis Vars</option>
-          <option value="HSR GDP">HSR GDP</option>
-          <option value="Hold My Throttle HQ">Hold My Throttle HQ</option>
-          <option value="Sai Preetham">Sai Preetham</option>
-        </select>
-      </label>
-      <label>
-        <span>Courier</span>
-        <select name="courier" value={courier} onChange={event => { setCourier(event.target.value); setShiprocketQuotes([]); setShiprocketCourierId(''); }}>
-          {Array.from(new Set([order.courier, ...COURIERS].filter(Boolean))).map(courier => (
-            <option value={courier} key={courier}>{courier.replaceAll('_', ' ')}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>Service</span>
-        <select name="service_code" value={['reverse', 'rto'].includes(shipmentType) ? 'reverse_pickup' : undefined} defaultValue={services[0]?.code || 'manual'} disabled={!services.length || ['reverse', 'rto'].includes(shipmentType)}>
-          {services.length ? services.map(service => (
-            <option value={service.code} key={service.code}>{service.name}</option>
-          )) : <option value="manual">Manual / not configured</option>}
-        </select>
-      </label>
-      <label>
-        <span>Package weight (grams)</span>
-        <input name="weight_grams" type="number" min="1" step="1" defaultValue={packageDefaults.weightGrams || 400} />
-      </label>
-      <label>
-        <span>Product value ({order.currency || 'INR'})</span>
-        <input name="product_value" type="number" step="0.01" defaultValue={order.order_value || ''} />
-      </label>
-      <label>
-        <span>Length (cm)</span>
-        <input name="length_cm" type="number" min="0.1" step="0.1" defaultValue={packageDefaults.lengthCm || 23} />
-      </label>
-      <label>
-        <span>Width (cm)</span>
-        <input name="width_cm" type="number" min="0.1" step="0.1" defaultValue={packageDefaults.widthCm || 14} />
-      </label>
-      <label>
-        <span>Height (cm)</span>
-        <input name="height_cm" type="number" min="0.1" step="0.1" defaultValue={packageDefaults.heightCm || 6} />
-      </label>
-      <label>
-        <span>Payment mode</span>
-        <select name="payment_mode" defaultValue="Prepaid">
-          <option>Prepaid</option>
-          <option>COD</option>
-        </select>
-      </label>
-      <label>
-        <span>AWB/manual override</span>
-        <input name="awb_number" value={awbNumber} onChange={event => setAwbNumber(event.target.value)} placeholder="Optional when courier API returns AWB" />
-      </label>
-      <label>
-        <span>Direct tracking link{['delhivery', 'fedex', 'shiprocket'].includes(courier) ? ' (optional)' : ''}</span>
-        <input name="tracking_url" type="url" value={trackingUrl} onChange={event => setTrackingUrl(event.target.value)} placeholder="https://carrier.example/track/..." required={!['delhivery', 'fedex', 'shiprocket'].includes(courier)} />
-      </label>
-      <label>
-        <span>Label URL</span>
-        <input name="label_url" value={labelUrl} onChange={event => setLabelUrl(event.target.value)} placeholder="Supabase Storage or courier label URL" />
-      </label>
-      {courier !== 'shiprocket' ? <label className="checkItem full">
-        <input type="checkbox" name="insurance" />
-        <span>Insurance option requested</span>
-      </label> : <p className="muted full">Secure opt-in is off. Turn off Auto Secure in Shiprocket account settings too to prevent automatic cover.</p>}
-      {selectedBookingCourier && !selectedBookingCourier.enabled ? (
-        <p className="muted full">Direct API booking for {selectedBookingCourier.name} is not configured yet. Save the shipment with a manual AWB for now.</p>
-      ) : null}
-      <div className="toolbar full">
-        <button type="submit" name="booking_action" value="book_courier" disabled={busy || (courier === 'shiprocket' && !shiprocketCourierId)} aria-busy={busy}>
-          {busy ? <><span className="buttonSpinner" aria-hidden="true" />Booking shipment…</> : `Book ${shipmentType === 'original' ? 'shipment' : shipmentType}`}
-        </button>
-        <button type="submit" name="booking_action" value="save_manual_awb" className="secondary" disabled={busy}>Save manual AWB</button>
-        <button
-          type="button"
-          className="secondary"
-          onClick={openOrGenerateLabel}
-          disabled={labelBusy || !canGenerateLabel}
-        >
-          {labelBusy ? 'Generating...' : labelUrl ? 'Open label' : 'Generate label'}
-        </button>
-        {labelUrl ? <a className="button secondary" href={labelUrl} target="_blank" rel="noreferrer">Download label</a> : null}
-        {courier === 'fedex' ? (
-          <>
-            <button type="button" className="secondary" onClick={getFedexEstimate} disabled={rateBusy}>
-              {rateBusy ? 'Checking FedEx...' : 'Get FedEx estimate'}
-            </button>
-            <button type="button" className="secondary" onClick={downloadFedexTemplate}>
-              Generate FedEx Excel
-            </button>
-          </>
-        ) : null}
-        {courier === 'shiprocket' ? <button type="button" className="secondary" onClick={getShiprocketEstimates} disabled={rateBusy}>{rateBusy ? 'Loading couriers…' : 'Get Shiprocket estimates'}</button> : null}
-        {message ? <span className="muted" role="status">{message}</span> : null}
-      </div>
-      {courier === 'shiprocket' && shiprocketQuotes.length > 0 ? <fieldset className="full shiprocketQuotes"><legend>Choose a courier</legend>
-        {shiprocketQuotes.map(quote => <label className="shiprocketQuote" key={quote.courierId}>
-          <input type="radio" name="shiprocket_quote" checked={shiprocketCourierId === String(quote.courierId)} onChange={() => setShiprocketCourierId(String(quote.courierId))} />
-          <span><strong>{quote.courierName}</strong><small>{quote.estimatedDeliveryDate || quote.estimatedDeliveryDays} · {quote.mode}</small></span>
-          <strong>{quote.currency} {quote.rate?.toFixed(2)}</strong>
-        </label>)}
-        <p className="muted">Booking requests pickup automatically. The confirmation will show whether pickup succeeded.</p>
-        <button type="submit" name="booking_action" value="book_courier" disabled={busy || !shiprocketCourierId}>{busy ? 'Booking…' : 'Book selected courier'}</button>
-      </fieldset> : null}
-      {courier === 'fedex' && fedexRate ? (
-        <div className="shipmentSource full">
-          <div>
-            <strong>{fedexRate.currency && fedexRate.amount !== '' ? `${fedexRate.currency} ${fedexRate.amount}` : 'FedEx rate returned'}</strong>
-            <p className="muted">
-              {[fedexRate.serviceName, fedexRate.rateType, fedexRate.transitTime, fedexRate.commitmentDate].filter(Boolean).join(' · ')}
-            </p>
-          </div>
-        </div>
-      ) : null}
+      <DeliveryDetailsFields needsFix={needsDeliveryFix} details={deliveryDetails} setDetails={setDeliveryDetails} country={order.country || 'IN'} />
+      <ShipmentSource order={order} available={wixShipmentAvailable} />
+      <ShipmentOptions order={order} shipmentType={shipmentType} setShipmentType={setShipmentType} replacementPart={replacementPart} setReplacementPart={setReplacementPart} pickup={selectedPickupLocation} setPickup={setSelectedPickupLocation} courier={courier} setCourier={setCourier} services={services} serviceCode={serviceCode} setServiceCode={setServiceCode} resetQuotes={() => { setShiprocketQuotes([]); setShiprocketCourierId(''); }} />
+      <PackageAndTrackingFields order={order} packageDefaults={packageDefaults} courier={courier} awbNumber={awbNumber} setAwbNumber={setAwbNumber} trackingUrl={trackingUrl} setTrackingUrl={setTrackingUrl} labelUrl={labelUrl} setLabelUrl={setLabelUrl} selectedBookingCourier={selectedBookingCourier} />
+      <ShipmentFormActions busy={busy} courier={courier} shipmentType={shipmentType} shiprocketCourierId={shiprocketCourierId} labelBusy={labelBusy} canGenerateLabel={canGenerateLabel} labelUrl={labelUrl} rateBusy={rateBusy} message={message} onLabel={openOrGenerateLabel} onFedexEstimate={getFedexEstimate} onFedexTemplate={downloadFedexTemplate} onShiprocketEstimates={getShiprocketEstimates} />
+      <QuoteResults courier={courier} quotes={shiprocketQuotes} selectedCourierId={shiprocketCourierId} setSelectedCourierId={setShiprocketCourierId} busy={busy} fedexRate={fedexRate} />
     </form>
   );
+}
+
+function DeliveryDetailsFields({ needsFix, details, setDetails, country }) {
+  if (!needsFix) return <><input type="hidden" name="phone" value={details.phone} /><input type="hidden" name="pincode" value={details.pincode} /><input type="hidden" name="address_line1" value={details.addressLine1} /><input type="hidden" name="country" value={country} /></>;
+  return <><div className="shipmentSource full" role="alert"><div><strong>Fix the delivery details, then retry booking</strong><p className="muted">The courier rejected one or more delivery fields. Your entered values stay in this form for the retry.</p></div></div><label><span>Recipient phone</span><input name="phone" value={details.phone} onChange={event => setDetails(current => ({ ...current, phone: event.target.value }))} required /></label><label><span>Delivery pincode</span><input name="pincode" value={details.pincode} onChange={event => setDetails(current => ({ ...current, pincode: event.target.value }))} inputMode="numeric" required /></label><label className="full"><span>Delivery address</span><input name="address_line1" value={details.addressLine1} onChange={event => setDetails(current => ({ ...current, addressLine1: event.target.value }))} required /></label><input type="hidden" name="country" value={country} /></>;
+}
+
+function ShipmentSource({ order, available }) {
+  return <div className="shipmentSource full"><div><strong>{available ? 'Wix shipment data found' : 'No Wix shipment found'}</strong><p className="muted">{available ? [order.courier, order.awb_number, order.wix_fulfillment_id].filter(Boolean).join(' · ') : 'Book a new shipment or save a manual AWB below.'}</p>{order.selected_shipping_title ? <p className="muted">Wix delivery option: <strong>{order.selected_shipping_title}</strong></p> : null}</div>{order.tracking_url ? <a className="button secondary" href={order.tracking_url} target="_blank" rel="noreferrer">Open Wix tracking</a> : null}</div>;
+}
+
+function ShipmentOptions({ order, shipmentType, setShipmentType, replacementPart, setReplacementPart, pickup, setPickup, courier, setCourier, services, serviceCode, setServiceCode, resetQuotes }) {
+  const reverse = ['reverse', 'rto'].includes(shipmentType);
+  function changeCourier(event) { setCourier(event.target.value); setServiceCode(''); resetQuotes(); }
+  return <><ShipmentPurposeField value={shipmentType} onChange={event => setShipmentType(event.target.value)} />{shipmentType === 'replacement' ? <ReplacementPartField value={replacementPart} onChange={event => setReplacementPart(event.target.value)} /> : null}<label><span>Pickup location</span><select name="pickup_location" value={pickup} onChange={event => setPickup(event.target.value)}>{!['Sis Vars', 'HSR GDP', 'Hold My Throttle HQ', 'Sai Preetham'].includes(pickup) ? <option value={pickup}>{pickup}</option> : null}<option value="Sis Vars">Sis Vars</option><option value="HSR GDP">HSR GDP</option><option value="Hold My Throttle HQ">Hold My Throttle HQ</option><option value="Sai Preetham">Sai Preetham</option></select></label><label><span>Courier</span><select name="courier" value={courier} onChange={changeCourier}>{Array.from(new Set([order.courier, ...COURIERS].filter(Boolean))).map(option => <option value={option} key={option}>{option.replaceAll('_', ' ')}</option>)}</select></label><label><span>Service</span><select name="service_code" value={reverse ? 'reverse_pickup' : serviceCode || services[0]?.code || 'manual'} onChange={event => setServiceCode(event.target.value)} disabled={!services.length || reverse}>{services.length ? services.map(service => <option value={service.code} key={service.code}>{service.name}</option>) : <option value="manual">Manual / not configured</option>}</select></label></>;
+}
+
+function PackageAndTrackingFields({ order, packageDefaults, courier, awbNumber, setAwbNumber, trackingUrl, setTrackingUrl, labelUrl, setLabelUrl, selectedBookingCourier }) {
+  const directCourier = ['delhivery', 'fedex', 'shiprocket'].includes(courier);
+  return <><label><span>Package weight (grams)</span><input name="weight_grams" type="number" min="1" step="1" defaultValue={packageDefaults.weightGrams || 400} /></label><label><span>Product value ({order.currency || 'INR'})</span><input name="product_value" type="number" step="0.01" defaultValue={order.order_value || ''} /></label><label><span>Length (cm)</span><input name="length_cm" type="number" min="0.1" step="0.1" defaultValue={packageDefaults.lengthCm || 23} /></label><label><span>Width (cm)</span><input name="width_cm" type="number" min="0.1" step="0.1" defaultValue={packageDefaults.widthCm || 14} /></label><label><span>Height (cm)</span><input name="height_cm" type="number" min="0.1" step="0.1" defaultValue={packageDefaults.heightCm || 6} /></label><label><span>Payment mode</span><select name="payment_mode" defaultValue="Prepaid"><option>Prepaid</option><option>COD</option></select></label><label><span>AWB/manual override</span><input name="awb_number" value={awbNumber} onChange={event => setAwbNumber(event.target.value)} placeholder="Optional when courier API returns AWB" /></label><label><span>Direct tracking link{directCourier ? ' (optional)' : ''}</span><input name="tracking_url" type="url" value={trackingUrl} onChange={event => setTrackingUrl(event.target.value)} placeholder="https://carrier.example/track/..." required={!directCourier} /></label><label><span>Label URL</span><input name="label_url" value={labelUrl} onChange={event => setLabelUrl(event.target.value)} placeholder="Supabase Storage or courier label URL" /></label>{courier !== 'shiprocket' ? <label className="checkItem full"><input type="checkbox" name="insurance" /><span>Insurance option requested</span></label> : <p className="muted full">Secure opt-in is off. Turn off Auto Secure in Shiprocket account settings too to prevent automatic cover.</p>}{selectedBookingCourier && !selectedBookingCourier.enabled ? <p className="muted full">Direct API booking for {selectedBookingCourier.name} is not configured yet. Save the shipment with a manual AWB for now.</p> : null}</>;
+}
+
+function ShipmentFormActions({ busy, courier, shipmentType, shiprocketCourierId, labelBusy, canGenerateLabel, labelUrl, rateBusy, message, onLabel, onFedexEstimate, onFedexTemplate, onShiprocketEstimates }) {
+  return <div className="toolbar full"><BookingButtons busy={busy} courier={courier} shipmentType={shipmentType} shiprocketCourierId={shiprocketCourierId} /><LabelButtons busy={labelBusy} canGenerate={canGenerateLabel} labelUrl={labelUrl} onLabel={onLabel} /><CourierEstimateButtons courier={courier} busy={rateBusy} onFedexEstimate={onFedexEstimate} onFedexTemplate={onFedexTemplate} onShiprocketEstimates={onShiprocketEstimates} /><ActionMessage message={message} /></div>;
+}
+
+function BookingButtons({ busy, courier, shipmentType, shiprocketCourierId }) {
+  const needsQuote = courier === 'shiprocket' && !shiprocketCourierId;
+  const bookingLabel = shipmentType === 'original' ? 'shipment' : shipmentType;
+  return <><button type="submit" name="booking_action" value="book_courier" disabled={busy || needsQuote} aria-busy={busy}>{busy ? <><span className="buttonSpinner" aria-hidden="true" />Booking shipment…</> : `Book ${bookingLabel}`}</button><button type="submit" name="booking_action" value="save_manual_awb" className="secondary" disabled={busy}>Save manual AWB</button></>;
+}
+
+function LabelButtons({ busy, canGenerate, labelUrl, onLabel }) {
+  const buttonLabel = busy ? 'Generating...' : labelUrl ? 'Open label' : 'Generate label';
+  return <><button type="button" className="secondary" onClick={onLabel} disabled={busy || !canGenerate}>{buttonLabel}</button>{labelUrl ? <a className="button secondary" href={labelUrl} target="_blank" rel="noreferrer">Download label</a> : null}</>;
+}
+
+function CourierEstimateButtons({ courier, busy, onFedexEstimate, onFedexTemplate, onShiprocketEstimates }) {
+  if (courier === 'fedex') return <><button type="button" className="secondary" onClick={onFedexEstimate} disabled={busy}>{busy ? 'Checking FedEx...' : 'Get FedEx estimate'}</button><button type="button" className="secondary" onClick={onFedexTemplate}>Generate FedEx Excel</button></>;
+  if (courier === 'shiprocket') return <button type="button" className="secondary" onClick={onShiprocketEstimates} disabled={busy}>{busy ? 'Loading couriers…' : 'Get Shiprocket estimates'}</button>;
+  return null;
+}
+
+function ActionMessage({ message }) { return message ? <span className="muted" role="status">{message}</span> : null; }
+
+function QuoteResults({ courier, quotes, selectedCourierId, setSelectedCourierId, busy, fedexRate }) {
+  if (courier === 'shiprocket' && quotes.length) return <fieldset className="full shiprocketQuotes"><legend>Choose a courier</legend>{quotes.map(quote => <label className="shiprocketQuote" key={quote.courierId}><input type="radio" name="shiprocket_quote" checked={selectedCourierId === String(quote.courierId)} onChange={() => setSelectedCourierId(String(quote.courierId))} /><span><strong>{quote.courierName}</strong><small>{quote.estimatedDeliveryDate || quote.estimatedDeliveryDays} · {quote.mode}</small></span><strong>{quote.currency} {quote.rate?.toFixed(2)}</strong></label>)}<p className="muted">Booking requests pickup automatically. The confirmation will show whether pickup succeeded.</p><button type="submit" name="booking_action" value="book_courier" disabled={busy || !selectedCourierId}>{busy ? 'Booking…' : 'Book selected courier'}</button></fieldset>;
+  if (courier === 'fedex' && fedexRate) return <div className="shipmentSource full"><div><strong>{fedexRate.currency && fedexRate.amount !== '' ? `${fedexRate.currency} ${fedexRate.amount}` : 'FedEx rate returned'}</strong><p className="muted">{[fedexRate.serviceName, fedexRate.rateType, fedexRate.transitTime, fedexRate.commitmentDate].filter(Boolean).join(' · ')}</p></div></div>;
+  return null;
 }
 
 function defaultCourierForOrder(order = {}) {
   const country = String(order.shipping_country || order.country || 'IN').trim().toUpperCase();
   return country && country !== 'IN' && country !== 'INDIA' ? 'fedex' : 'delhivery';
+}
+
+function getInitialFormValues(order, pickupLocation) {
+  return {
+    courier: order.courier || defaultCourierForOrder(order),
+    pickupLocation: pickupLocation || 'Sis Vars',
+    labelUrl: order.label_url || '',
+    awbNumber: order.awb_number || '',
+    trackingUrl: order.tracking_url || '',
+    deliveryDetails: {
+      phone: order.phone || '',
+      pincode: order.pincode || '',
+      addressLine1: order.address_line1 || ''
+    }
+  };
+}
+
+function getFormMeta({ order, shipments, courier, labelUrl, awbNumber }) {
+  const selectedBookingCourier = BOOKING_COURIERS.find(item => item.code === courier);
+  return {
+    selectedBookingCourier,
+    services: selectedBookingCourier?.services || [],
+    canGenerateLabel: Boolean(labelUrl || awbNumber),
+    hasExistingShipment: Boolean(shipments.length || order.awb_number || order.shipment_status === 'shipment_booked'),
+    wixShipmentAvailable: Boolean(order.wix_fulfillment_id || order.awb_number || order.tracking_url)
+  };
 }

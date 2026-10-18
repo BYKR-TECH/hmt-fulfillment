@@ -1,9 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useReducer } from 'react';
 
 export function AutoBookingSettingsFields({ settings }) {
-  const [pickup, setPickup] = useState(settings.pickupLocation);
-  const [courier, setCourier] = useState(settings.international.courier);
+  const [pickup, setPickup] = useReducer((current, next) => next, settings.pickupLocation);
+  const [courier, setCourier] = useReducer((current, next) => next, settings.international.courier);
   const check = (name, label, checked) => <label className="checkItem full"><input key={name === 'pickup_explicitly_chosen' ? pickup : name} type="checkbox" name={`auto_booking_${name}`} defaultChecked={name === 'pickup_explicitly_chosen' ? checked && pickup === settings.pickupLocation : checked} /><span>{label}</span></label>;
   return <section className="panel">
     <div className="panelHeader"><div><h2>Auto shipment booking</h2><p className="muted settingsHint">Booking only; fulfillment waits for pickup. Times use Asia/Kolkata.</p></div></div>
