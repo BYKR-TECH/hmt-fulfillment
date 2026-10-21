@@ -15,12 +15,66 @@ export function OrderDetailForm({ order, section = 'order', label }) {
     setSaving(true);
     setMessage('');
     const body = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const response = await fetch(`/api/crm/orders/${order.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await response.json();
+
+    // Client-side backward status warning before the first save attempt.
+    const statusHints = [];
+    if (body.internal_status && body.internal_status !== order.internal_status) {
+      statusHints.push(`order status ${order.internal_status || '(empty)'} → ${body.internal_status}`);
+    }
+    if (body.shipment_status && body.shipment_status !== order.shipment_status) {
+      statusHints.push(`shipment status ${order.shipment_status || '(empty)'} → ${body.shipment_status}`);
+    }
+    let confirmBackward = false;
+    if (statusHints.length) {
+      const ok = window.confirm(
+        `You are changing status:\n\n${statusHints.join('\n')}\n\nIf this moves the order BACKWARD (e.g. shipped → packing), it needs an explicit confirm and reason.\n\nContinue?`
+      );
+      if (!ok) {
+        setSaving(false);
+        return;
+      }
+      confirmBackward = true;
+      if (!String(body.change_notes || '').trim()) {
+        const reason = window.prompt('Reason for this status change (required if backward):', '');
+        if (reason == null) {
+          setSaving(false);
+          return;
+        }
+        body.change_notes = String(reason).trim();
+      }
+    }
+
+    async function save(payload) {
+      const response = await fetch(`/api/crm/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      return { response, data };
+    }
+
+    let { response, data } = await save({ ...body, confirmBackward });
+    if (!response.ok && data.code === 'confirm_backward_required') {
+      const summary = (data.backward_changes || []).map(change => `${change.field}: ${change.from} → ${change.to}`).join('\n') || statusHints.join('\n');
+      const ok = window.confirm(`Backward status change detected:\n\n${summary}\n\nConfirm you want to move this order backward?`);
+      if (!ok) {
+        setSaving(false);
+        setMessage('Save cancelled.');
+        return;
+      }
+      if (!String(body.change_notes || '').trim()) {
+        const reason = window.prompt('Reason for backward status change (required):', '');
+        if (reason == null || !String(reason).trim()) {
+          setSaving(false);
+          setMessage('A reason is required for backward status changes.');
+          return;
+        }
+        body.change_notes = String(reason).trim();
+      }
+      ({ response, data } = await save({ ...body, confirmBackward: true }));
+    }
+
     setSaving(false);
     if (!response.ok) {
       setMessage(data.error || 'Save failed.');
