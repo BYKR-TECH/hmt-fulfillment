@@ -9,7 +9,7 @@
     "start": "next start",
     "legacy:start": "node src/server.js",
     "legacy:dev": "node --watch src/server.js",
-    "test": "node --test",
+    "test": "node --import ./scripts/block-network-in-tests.js --test",
     "audit:crm-options": "node scripts/audit-crm-options.js",
     "audit:crm-stage-options": "node scripts/audit-crm-stage-options.js",
     "import:shipments": "node scripts/import-local-shipments-to-supabase.js",
