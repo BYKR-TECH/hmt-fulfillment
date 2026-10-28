@@ -28,10 +28,12 @@ test('carrier progress completes pickup independently of order fulfillment', () 
   assert.equal(hasCompletedPickup(shipment), false);
 });
 test('replacement on an already fulfilled order still awaits its own pickup', () => {
-  for (const wix_fulfillment_status of ['awaiting-pickup']) {
+  for (const wix_fulfillment_status of ['awaiting-pickup', 'fulfilled', 'synced', 'failed', '']) {
     const replacement = { ...shipment, is_additional_outbound: true, fulfillment_status: 'FULFILLED', wix_fulfillment_status };
     assert.equal(isAwaitingWarehousePickup(replacement) && !hasCompletedPickup(replacement), true);
-    assert.equal(hasCompletedPickup({ ...replacement, status: 'delivered' }), true);
+    for (const status of ['picked_up', 'in-transit', 'delivered']) {
+      assert.equal(hasCompletedPickup({ ...replacement, status }), true);
+    }
     assert.equal(hasCompletedPickup({ ...replacement, status: 'cancelled' }), false);
   }
 });
@@ -45,7 +47,7 @@ const { code } = transformSync(readFileSync(new URL('../lib/crm/data.js', import
   filename: 'data.js', jsc: { parser: { syntax: 'ecmascript' }, target: 'es2022' }, module: { type: 'commonjs' }
 });
 
-function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails = false, wooFails = false } = {}) {
+function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails = false, wooFails = false, workspaceRows = [] } = {}) {
   let row = { ...shipment, id: 'shipment-1', order_id: 'order-1', status };
   let order = {
     id: 'order-1',
@@ -59,6 +61,8 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
     let patch;
     const query = {
       select() { return query; }, eq() { return query; },
+      not() { return query; }, order() { return query; },
+      range: async () => ({ data: workspaceRows, error: null }),
       update(value) { patch = value; return query; },
       maybeSingle: async () => ({ data: row }),
       single: async () => { row = { ...row, ...patch }; return { data: row }; },
@@ -69,7 +73,7 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
   const mocks = {
     './shiprocket-cancellation.js': {},
     './order-display.js': { orderDisplayDetails },
-    './pickup.js': { isAwaitingWarehousePickup, canConfirmPickup },
+    './pickup.js': { isAwaitingWarehousePickup, canConfirmPickup, hasCompletedPickup },
     './shipment-dedup': { findMatchingShipment: () => null, isDuplicateShipmentError: () => false },
     './direct-courier-booking.js': {
       directCourierBookingDeniedReason: () => null,
@@ -118,7 +122,7 @@ function pickupHarness({ status = 'booked', wix = true, woo = false, syncFails =
   };
   const exports = {};
   runInNewContext(code, { exports, require: name => { if (!(name in mocks)) throw new Error(name); return mocks[name]; }, console, Boolean });
-  return { run: () => exports.markShipmentPickedUp('order-1', 'shipment-1'), calls: () => calls, wooCalls: () => wooCalls };
+  return { workspace: () => exports.getPickupWorkspace(), run: () => exports.markShipmentPickedUp('order-1', 'shipment-1'), calls: () => calls, wooCalls: () => wooCalls };
 }
 
 test('manual pickup records collection and fulfills Wix', async () => {
@@ -169,5 +173,15 @@ test('historical booked shipments on fulfilled orders stay out of awaiting picku
   for (const wix_fulfillment_status of ['fulfilled', 'synced', 'awaiting-pickup']) {
     assert.equal(hasCompletedPickup({ ...shipment, fulfillment_status: 'FULFILLED', wix_fulfillment_status }), true);
   }
-  assert.equal(hasCompletedPickup({ ...shipment, is_additional_outbound: true, fulfillment_status: 'FULFILLED', wix_fulfillment_status: 'synced' }), true);
+});
+
+
+test('pickup workspace separates a booked replacement from its fulfilled original', async () => {
+  const orders = { fulfillment_status: 'FULFILLED', wix_fulfillment_status: 'fulfilled' };
+  const original = { ...shipment, id: 'old', order_id: 'order-1', created_at: '2026-10-01', orders };
+  const replacement = { ...original, id: 'new', waybill: 'NEW123', created_at: '2026-10-28' };
+  const workspace = await pickupHarness({ workspaceRows: [replacement, original] }).workspace();
+  assert.equal(workspace.awaitingCount, 1);
+  assert.deepEqual(Array.from(workspace.needsPickup.flatMap(group => group.shipments), row => row.id), ['new']);
+  assert.deepEqual(Array.from(workspace.pickedUp, row => row.id), ['old']);
 });
