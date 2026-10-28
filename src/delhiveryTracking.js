@@ -172,6 +172,14 @@ export function createDelhiveryTrackingSync(config, options = {}) {
   const setTimer = options.setTimer || setInterval;
   const clearTimer = options.clearTimer || clearInterval;
   const onShipmentStatusChanged = options.onShipmentStatusChanged || null;
+  const deps = {
+    listActiveShipmentWaybills: options.listActiveShipmentWaybills || listActiveShipmentWaybills,
+    saveTrackingEvents: options.saveTrackingEvents || saveTrackingEvents,
+    updateShipmentTracking: options.updateShipmentTracking || updateShipmentTracking,
+    fetchCourierTracking: options.fetchCourierTracking || fetchCourierTracking,
+    rollbackCancelledShipmentInWix: options.rollbackCancelledShipmentInWix || rollbackCancelledShipmentInWix,
+    onShipmentStatusChanged
+  };
   let timer = null;
 
   const state = {
@@ -220,7 +228,7 @@ export function createDelhiveryTrackingSync(config, options = {}) {
     state.lastWarnings = [];
 
     try {
-      await runTrackingPass(config, state, logger);
+      await runTrackingPass(config, state, logger, deps);
     } catch (error) {
       state.lastError = error.message;
       logger.error?.(`Delhivery tracking sync failed: ${error.message}`);
@@ -274,17 +282,18 @@ export function createDelhiveryTrackingSync(config, options = {}) {
 // Core tracking pass
 // ---------------------------------------------------------------------------
 
-async function runTrackingPass(config, state, logger) {
-  const activeShipments = await listActiveShipmentWaybills();
+async function runTrackingPass(config, state, logger, deps) {
+  const activeShipments = await deps.listActiveShipmentWaybills();
   if (!activeShipments.length) return;
 
   const shipmentsByCourier = groupShipmentsByCourier(activeShipments);
-  await pollCourierTracking('delhivery', shipmentsByCourier.get('delhivery') || [], config.delhivery.trackingBatchSize, config, state, logger);
-  await pollCourierTracking('shiprocket', shipmentsByCourier.get('shiprocket') || [], config.shiprocket?.trackingBatchSize || 10, config, state, logger);
-  await pollCourierTracking('fedex', shipmentsByCourier.get('fedex') || [], config.fedex?.trackingBatchSize || 10, config, state, logger);
+  await pollCourierTracking('delhivery', shipmentsByCourier.get('delhivery') || [], config.delhivery.trackingBatchSize, config, state, logger, deps);
+  await pollCourierTracking('shiprocket', shipmentsByCourier.get('shiprocket') || [], config.shiprocket?.trackingBatchSize || 10, config, state, logger, deps);
+  await pollCourierTracking('fedex', shipmentsByCourier.get('fedex') || [], config.fedex?.trackingBatchSize || 10, config, state, logger, deps);
 }
 
-async function pollCourierTracking(courierCode, activeShipments, batchSize, config, state, logger) {
+async function pollCourierTracking(courierCode, activeShipments, batchSize, config, state, logger, deps) {
+  const { onShipmentStatusChanged } = deps;
   if (!activeShipments.length || !isCourierTrackingEnabled(courierCode, config)) return;
 
   for (let offset = 0; offset < activeShipments.length; offset += batchSize) {
@@ -293,7 +302,7 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
 
     let trackingMap;
     try {
-      trackingMap = await fetchCourierTracking(courierCode, waybills, config);
+      trackingMap = await deps.fetchCourierTracking(courierCode, waybills, config);
     } catch (error) {
       state.lastFailedBatches += 1;
       const warning = `${courierCode} tracking batch failed: ${error.message}`;
@@ -314,12 +323,12 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
 
       // Extract and save new scan events
       const events = extractCourierTrackingEvents(courierCode, pkg);
-      const savedEvents = await saveTrackingEvents(shipment.id, events);
+      const savedEvents = await deps.saveTrackingEvents(shipment.id, events);
       state.lastEvents += savedEvents;
 
       // Update shipment status only if it changed and is a progression
       if (liveStatus && shouldUpdateStatus(shipment.status, liveStatus)) {
-        await updateShipmentTracking(shipment.id, {
+        await deps.updateShipmentTracking(shipment.id, {
           status: liveStatus,
           location: location || null,
           lastEventAt: new Date().toISOString()
@@ -341,7 +350,7 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
 
       if (liveStatus === 'cancelled') {
         try {
-          const result = await rollbackCancelledShipmentInWix({ ...shipment, status: liveStatus }, config);
+          const result = await deps.rollbackCancelledShipmentInWix({ ...shipment, status: liveStatus }, config);
           if (result) logger.log?.(`[tracking] ${courierCode} AWB ${shipment.waybill}: Wix fulfillment removed after cancellation`);
         } catch (error) {
           const warning = `[tracking] ${courierCode} AWB ${shipment.waybill}: Wix fulfillment rollback failed: ${error.message}`;
