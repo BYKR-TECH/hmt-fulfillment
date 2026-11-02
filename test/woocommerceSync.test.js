@@ -133,6 +133,7 @@ test('runWooOrderSync fails closed when disabled', async () => {
 
 test('runWooOrderSync pages through Woo and counts upserts with mocked fetch/store', async () => {
   const upsertCalls = [];
+  const fetchCalls = [];
 
   process.env.WOO_ORDER_SYNC_ENABLED = 'true';
   process.env.WOO_BASE_URL = 'https://wp-staging.holdmythrottle.com';
@@ -145,6 +146,7 @@ test('runWooOrderSync pages through Woo and counts upserts with mocked fetch/sto
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
 
   const fetchImpl = async url => {
+    fetchCalls.push(String(url));
     const page = Number(new URL(String(url)).searchParams.get('page') || 1);
     const orders =
       page === 1
@@ -189,6 +191,7 @@ test('runWooOrderSync pages through Woo and counts upserts with mocked fetch/sto
     assert.equal(result.persisted, 3);
     assert.equal(result.pages, 2);
     assert.deepEqual(upsertCalls.flat(), [201, 202, 203]);
+    assert.equal(new URL(fetchCalls[0]).searchParams.get('order'), 'asc');
   } finally {
     delete process.env.WOO_ORDER_SYNC_ENABLED;
     delete process.env.WOO_BASE_URL;

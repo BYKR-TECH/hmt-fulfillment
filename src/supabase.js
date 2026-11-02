@@ -35,6 +35,18 @@ export class SupabaseRestClient {
     return Array.isArray(rows) ? rows[0] : rows;
   }
 
+  async upsertManyIgnoreDuplicates(table, rows, conflictTarget) {
+    if (!rows?.length) return [];
+    const query = conflictTarget ? `on_conflict=${encodeURIComponent(conflictTarget)}` : '';
+    const saved = await this.request(table, {
+      method: 'POST',
+      query,
+      body: rows,
+      headers: { Prefer: 'resolution=ignore-duplicates,return=representation' }
+    });
+    return Array.isArray(saved) ? saved : saved ? [saved] : [];
+  }
+
   async patch(table, query, row) {
     const rows = await this.request(table, {
       method: 'PATCH',

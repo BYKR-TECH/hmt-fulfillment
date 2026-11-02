@@ -348,28 +348,27 @@ export async function listActiveShipmentWaybills() {
  * @returns {Promise<number>} Number of new events inserted
  */
 export async function saveTrackingEvents(shipmentId, events) {
-  const supabase = getSupabaseClient();
-  if (!supabase || !events.length) return 0;
+  return saveTrackingEventsBatch([{ shipmentId, events }]);
+}
 
-  let inserted = 0;
-  for (const event of events) {
-    try {
-      await supabase.insert('shipment_events', {
-        shipment_id: shipmentId,
-        event_status: event.event_status || null,
-        normalized_status: event.normalized_status || null,
-        carrier_location: event.carrier_location || null,
-        message: event.message || null,
-        occurred_at: event.occurred_at || new Date().toISOString(),
-        raw_event: event.raw_event || {}
-      });
-      inserted += 1;
-    } catch (error) {
-      // Unique-constraint violation means we already have this event — skip
-      if (!isUniqueViolation(error)) throw error;
-    }
-  }
-  return inserted;
+export async function saveTrackingEventsBatch(groups) {
+  const supabase = getSupabaseClient();
+  const rows = (groups || []).flatMap(({ shipmentId, events }) => (events || []).map(event => ({
+    shipment_id: shipmentId,
+    event_status: event.event_status || null,
+    normalized_status: event.normalized_status || null,
+    carrier_location: event.carrier_location || null,
+    message: event.message || null,
+    occurred_at: event.occurred_at || new Date().toISOString(),
+    raw_event: event.raw_event || {}
+  })));
+  if (!supabase || !rows.length) return 0;
+  const inserted = await supabase.upsertManyIgnoreDuplicates(
+    'shipment_events',
+    rows,
+    'shipment_id,occurred_at,event_status'
+  );
+  return inserted.length;
 }
 
 /**

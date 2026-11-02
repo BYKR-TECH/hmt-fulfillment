@@ -102,6 +102,31 @@ test('disabled and unqualified orders do not enter booking', async () => {
   }
 });
 
+test('automation does not rewrite unchanged skipped or completed post-AWB orders', async () => {
+  const skippedDb = fakeDb();
+  const skippedCounters = { skipped: 0, processed: 0 };
+  await processOrder(
+    skippedDb,
+    { ...order, internal_status: 'cancelled', last_automation_status: 'skipped:terminal-status', last_automation_error: null },
+    {},
+    skippedCounters
+  );
+  assert.equal(skippedCounters.skipped, 1);
+  assert.equal(skippedDb.writes.length, 0);
+
+  const completedDb = fakeDb();
+  const completedCounters = { skipped: 0, processed: 0 };
+  await processOrder(
+    completedDb,
+    { ...order, awb_number: 'AWB-1', last_automation_status: 'post-awb-complete', last_automation_error: null },
+    {},
+    completedCounters
+  );
+  assert.equal(completedCounters.skipped, 1);
+  assert.equal(completedCounters.processed, 0);
+  assert.equal(completedDb.writes.length, 0);
+});
+
 test('legacy SID vars pickup normalises to the Delhivery warehouse name Sis Vars', async () => {
   const { validateAutoBookingSettings } = await import('../lib/crm/auto-booking-settings.js');
   assert.equal(validateAutoBookingSettings({ pickupLocation: 'SID vars' }).pickupLocation, 'Sis Vars');
