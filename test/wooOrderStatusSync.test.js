@@ -52,8 +52,7 @@ test('Woo refuses a status update that the store did not apply', async () => {
 
 test('periodic reconciliation retries failures even for already-delivered shipment legs', async () => {
   let fail = true; let puts = 0;
-  const db = { from: table => table === 'orders' ? { select: () => ({ eq: () => ({ order: () => ({ range: async () => ({ data: [order] }) }) }) }) }
-    : table === 'shipments' ? { select: () => ({ eq: async () => ({ data: [leg('delivered')] }) }) }
+  const db = { from: table => table === 'orders' ? { select: () => ({ eq: () => ({ order: () => ({ range: async () => ({ data: [{ ...order, shipments: [leg('delivered')] }] }) }) }) }) }
     : { insert: async () => ({ error: null }) } };
   const fetchImpl = async (url, init) => {
     if (fail) return { ok: false, status: 503 };

@@ -13,7 +13,11 @@ test('catch-up accepts pickup and later active statuses, not booking or terminal
 });
 test('unchanged in-transit shipment is sent once through the existing duplicate guard', async () => {
   let sent = false;
-  const db = { from: () => ({ select() { return this; }, order() { return this; }, range: async () => ({ data: [shipment] }) }) };
+  const db = { from: table => ({
+    select() { return this; }, eq() { return this; }, like() { return this; }, order() { return this; },
+    then(resolve) { return Promise.resolve({ data: table === 'notes' && sent ? [{ body: `automation:whatsapp:shipment-confirmation:${shipment.waybill}` }] : [] }).then(resolve); },
+    range: async () => ({ data: table === 'shipments' ? [shipment] : [] })
+  }) };
   const options = { db, loadOrder: async () => order, send: async (_order, _shipment, options) => {
     assert.equal(options.trigger, 'shipment-catchup');
     if (sent) return { skipped: true, reason: 'already-sent' };

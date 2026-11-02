@@ -12,6 +12,7 @@ import { isSupabaseConfigured } from './supabase.js';
 import {
   listActiveShipmentWaybills,
   saveTrackingEvents,
+  saveTrackingEventsBatch,
   updateShipmentTracking
 } from './store.js';
 import { rollbackCancelledShipmentInWix } from './wixShipmentSync.js';
@@ -302,6 +303,7 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
       continue; // skip this batch, try the next
     }
 
+    const prepared = [];
     for (const shipment of batch) {
       state.lastPolled += 1;
       const pkg = trackingMap.get(shipment.waybill) || trackingMap.get(normalizeWaybillKey(shipment.waybill));
@@ -311,12 +313,16 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
         ? normalizeDelhiveryStatus(getCourierLiveStatus(courierCode, pkg), pkg?.Status?.StatusType || pkg?.status?.StatusType)
         : normalizeCourierStatus(courierCode, getCourierLiveStatus(courierCode, pkg));
       const location = getCourierLiveLocation(courierCode, pkg);
-
-      // Extract and save new scan events
       const events = extractCourierTrackingEvents(courierCode, pkg);
-      const savedEvents = await saveTrackingEvents(shipment.id, events);
-      state.lastEvents += savedEvents;
+      prepared.push({ shipment, liveStatus, location, events });
+    }
 
+    // One PostgREST request per carrier batch instead of one request per scan.
+    state.lastEvents += await saveTrackingEventsBatch(
+      prepared.map(({ shipment, events }) => ({ shipmentId: shipment.id, events }))
+    );
+
+    for (const { shipment, liveStatus, location } of prepared) {
       // Update shipment status only if it changed and is a progression
       if (liveStatus && shouldUpdateStatus(shipment.status, liveStatus)) {
         await updateShipmentTracking(shipment.id, {

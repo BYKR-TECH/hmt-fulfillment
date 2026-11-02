@@ -62,13 +62,17 @@ export async function reconcileWooShipmentStatuses(config = getConfig(), options
   if (!db) throw new Error('Supabase is required for Woo shipment status reconciliation.');
   const summary = { checked: 0, changed: 0, skipped: 0, errors: [] };
   for (let offset = 0; ; offset += 500) {
-    const result = await db.from('orders').select('id,source,woo_order_id,external_order_id,payment_status,status')
+    const result = await db.from('orders').select('id,source,woo_order_id,external_order_id,payment_status,status,shipments(id,waybill,status,direction)')
       .eq('source', 'woocommerce').order('id').range(offset, offset + 499);
     if (result.error) throw new Error(`Woo order lookup failed: ${result.error.message}`);
     for (const order of result.data || []) {
       summary.checked++;
       try {
-        const status = await reconcileWooOrderStatus(order, config, { ...options, db });
+        const status = await reconcileWooOrderStatus(order, config, {
+          ...options,
+          db,
+          shipments: order.shipments || []
+        });
         if (status.changed) summary.changed++; else summary.skipped++;
       } catch (error) { summary.errors.push(`${order.woo_order_id || order.external_order_id}: ${error.message}`); }
     }
