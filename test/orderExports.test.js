@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDailyDemand, buildOrderRows, buildSourcingRows, countUnfulfilledOrders, formatDiscordDailyReport, previousCalendarDayBounds, summarizePreviousDayOrders } from '../lib/crm/order-exports.js';
+import { buildDailyDemand, buildOrderRows, buildSourcingRows, countUnfulfilledOrders, formatDiscordDailyReport, reconcileDailyWooOrders, previousCalendarDayBounds, summarizePreviousDayOrders } from '../lib/crm/order-exports.js';
 
 const orders = [{ order_number: '1001', source_created_at: '2026-07-16T00:00:00.000Z', status: 'PAID', customers: { name: 'Asha', email: 'asha@example.com' }, order_items: [{ sku: 'HMT-RED', product_name: 'Throttle Red', quantity: 2, price: 1000 }] }];
 test('builds an order-per-item sheet and sourcing roll-up', () => {
@@ -66,4 +66,35 @@ test('lists unsupported paid currencies separately instead of treating them as I
   assert.equal(summary.totalPaid, 100);
   assert.deepEqual(summary.unconvertedPaid, [{ currency: 'CAD', amount: 50 }]);
   assert.match(formatDiscordDailyReport({ ...summary, bounds: { date: '2026-10-04' }, unfulfilledCount: 0 }), /Excluded from INR total \(no conversion rate\): CAD: 50/);
+});
+
+
+test('reconciles every daily Woo page independently of incremental watermarks', async () => {
+  const bounds = previousCalendarDayBounds(new Date('2026-11-03T18:30:00Z'), 'Asia/Kolkata');
+  const calls = [];
+  const saved = [];
+  const result = await reconcileDailyWooOrders(bounds, {
+    config: { woocommerce: { orderSync: { enabled: true } } },
+    fetchOrders: async (_config, options) => {
+      calls.push(options);
+      return options.page === 1
+        ? { orders: [{ id: 1, date_created_gmt: '2026-11-02T18:30:00' }], hasMore: true }
+        : { orders: [{ id: 2, date_created_gmt: '2026-11-03T18:29:59' }, { id: 3, date_created_gmt: '2026-11-03T18:30:00' }], hasMore: false };
+    },
+    saveOrders: async orders => { saved.push(...orders.map(order => order.id)); return orders; }
+  });
+  assert.deepEqual(saved, [1, 2]);
+  assert.equal(result.count, 2);
+  assert.equal(calls[0].after, '2026-11-02T18:29:59.000Z');
+  assert.equal(calls[0].before, bounds.end);
+  assert.equal(calls[1].page, 2);
+  assert.equal(calls[0].modifiedAfter, undefined);
+});
+
+test('daily reconciliation fails when any order cannot be persisted', async () => {
+  await assert.rejects(reconcileDailyWooOrders({ start: '2026-11-02T18:30:00Z', end: '2026-11-03T18:30:00Z' }, {
+    config: { woocommerce: { orderSync: { enabled: true } } },
+    fetchOrders: async () => ({ orders: [{ id: 1, date_created_gmt: '2026-11-03T12:00:00' }], hasMore: false }),
+    saveOrders: async () => []
+  }), /did not persist every order/);
 });

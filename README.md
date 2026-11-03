@@ -300,6 +300,8 @@ OPERATIONS_TIMEZONE=Asia/Kolkata
 DAILY_ORDER_GOAL=5
 ```
 
+Before posting, the order report reconciles the completed reporting day directly from WooCommerce using UTC creation-date bounds and all result pages. Reconciliation or Google Sheets failures stop the Discord post, so incomplete data is not announced as a successful daily report.
+
 The order report uses `POST /api/integrations/orders/export` at 00:00 IST. The independent Chatwoot report uses `POST /api/integrations/chatwoot/daily-report` at 00:02 IST. A failure in either service cannot retry or block the other. Enable both systemd timers after deployment:
 
 ```bash

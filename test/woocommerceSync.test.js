@@ -56,6 +56,7 @@ test('fetchWooCommerceOrders pages with modified_after and Basic auth', async ()
     page: 1,
     perPage: 2,
     modifiedAfter: '2026-09-19T00:00:00.000Z',
+    before: '2026-09-20T00:00:00.000Z',
     fetchImpl
   });
   assert.equal(page1.orders.length, 2);
@@ -74,6 +75,8 @@ test('fetchWooCommerceOrders pages with modified_after and Basic auth', async ()
   assert.equal(calls.length, 2);
   assert.match(calls[0].url, /\/wp-json\/wc\/v3\/orders/);
   assert.match(calls[0].url, /modified_after=/);
+  assert.equal(new URL(calls[0].url).searchParams.get('dates_are_gmt'), 'true');
+  assert.equal(new URL(calls[0].url).searchParams.get('before'), '2026-09-20T00:00:00');
   assert.match(calls[0].url, /orderby=modified/);
   assert.equal(calls[0].headers.Authorization, wooBasicAuthHeader('ck_test', 'cs_test'));
 });

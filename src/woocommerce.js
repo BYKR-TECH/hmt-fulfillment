@@ -19,6 +19,8 @@ export async function fetchWooCommerceOrders(config, options = {}) {
   url.searchParams.set('order', options.order || 'desc');
   if (options.modifiedAfter) url.searchParams.set('modified_after', toWooIso(options.modifiedAfter));
   if (options.after) url.searchParams.set('after', toWooIso(options.after));
+  if (options.before) url.searchParams.set('before', toWooIso(options.before));
+  url.searchParams.set('dates_are_gmt', 'true');
   if (options.status) url.searchParams.set('status', options.status);
 
   const response = await (options.fetchImpl || globalThis.fetch)(url, {
