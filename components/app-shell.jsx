@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { currentUserProfile } from '@/lib/current-user';
 import { hasPermission, permissionForPath } from '@/lib/access-control';
-import { WixAutoSync } from './wix-auto-sync';
 import { SignOutButton } from './sign-out-button';
 
 const nav = [
@@ -44,7 +43,6 @@ export async function AppShell({ children }) {
   const profile = await currentUserProfile();
   return (
     <div className="appShell">
-      <WixAutoSync />
       <aside className="sidebar">
         <div className="brandBlock">
           <strong>Hold My Throttle</strong>
