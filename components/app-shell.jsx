@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Printer,
   Settings,
+  Sparkles,
   Truck,
   Users,
   Wrench
@@ -23,6 +24,7 @@ import { WixAutoSync } from './wix-auto-sync';
 import { SignOutButton } from './sign-out-button';
 
 const nav = [
+  ['/ops', 'New Ops (preview)', Sparkles],
   ['/', 'Dashboard', Gauge],
   ['/abandoned-carts', 'Abandoned carts', ShoppingCart],
   ['/print', 'Print labels', Printer],
