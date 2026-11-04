@@ -32,10 +32,13 @@ test('daily Discord reports are not retried because webhook posts are not idempo
 
 test('automation trigger never retries a completed POST', () => {
   const automationService = readFileSync(new URL('../deploy/wixdelhivery-automation.service', import.meta.url), 'utf8');
+  const automationCron = readFileSync(new URL('../deploy/wixdelhivery-automation.cron', import.meta.url), 'utf8');
   const automationTimer = readFileSync(new URL('../deploy/wixdelhivery-automation.timer', import.meta.url), 'utf8');
   assert.doesNotMatch(automationService, /--retry(?:\s|=)/);
   assert.match(automationService, /--max-time 1800/);
   assert.match(automationService, /\/api\/automation\/run/);
+  assert.doesNotMatch(automationService, /force/);
+  assert.doesNotMatch(automationCron.split('\n')[2], /force/);
   assert.match(automationTimer, /OnUnitInactiveSec=15min/);
   assert.doesNotMatch(automationTimer, /OnUnitActiveSec=/);
 });

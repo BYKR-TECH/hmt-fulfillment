@@ -79,7 +79,14 @@ export function resolveWooModifiedAfterWatermark(state, config, { force = false 
   if (force) return null;
   if (state?.watermarkModifiedAfter) return state.watermarkModifiedAfter;
   const intervalMs = config.woocommerce?.orderSync?.intervalMs || 15 * 60_000;
-  const lookbackMs = Math.max(intervalMs * 2, 30 * 60_000);
+  // In-memory watermarks reset when the app restarts. Use a wide cold-start
+  // overlap so a maintenance window or server outage cannot create an order gap.
+  // Subsequent runs resume from the watermark and retain the normal small query.
+  const configuredColdLookbackHours = Number(process.env.WOO_ORDER_SYNC_COLD_LOOKBACK_HOURS || 168);
+  const coldLookbackHours = Number.isFinite(configuredColdLookbackHours)
+    ? Math.max(configuredColdLookbackHours, 1)
+    : 168;
+  const lookbackMs = Math.max(intervalMs * 2, coldLookbackHours * 60 * 60_000);
   return new Date(Date.now() - lookbackMs).toISOString();
 }
 
