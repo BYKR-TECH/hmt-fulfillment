@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runAmazonOrderSync } from '../lib/crm/amazon-sync.js';
 
-test('runs Amazon sync in mock/demo mode when credentials are missing', async () => {
+test('runs Amazon sync in mock/demo mode only when explicitly enabled', async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
   globalThis.fetch = async (url, options = {}) => {
@@ -45,9 +45,13 @@ test('runs Amazon sync in mock/demo mode when credentials are missing', async ()
   const oldClientId = process.env.AMAZON_SP_API_CLIENT_ID;
   const oldClientSecret = process.env.AMAZON_SP_API_CLIENT_SECRET;
   const oldRefreshToken = process.env.AMAZON_SP_API_REFRESH_TOKEN;
+  const oldSyncEnabled = process.env.AMAZON_ORDER_SYNC_ENABLED;
+  const oldDemoMode = process.env.AMAZON_DEMO_MODE;
   delete process.env.AMAZON_SP_API_CLIENT_ID;
   delete process.env.AMAZON_SP_API_CLIENT_SECRET;
   delete process.env.AMAZON_SP_API_REFRESH_TOKEN;
+  process.env.AMAZON_ORDER_SYNC_ENABLED = 'true';
+  process.env.AMAZON_DEMO_MODE = 'true';
 
   try {
     const result = await runAmazonOrderSync({ reason: 'manual', force: true });
@@ -70,8 +74,76 @@ test('runs Amazon sync in mock/demo mode when credentials are missing', async ()
     if (oldClientId !== undefined) process.env.AMAZON_SP_API_CLIENT_ID = oldClientId;
     if (oldClientSecret !== undefined) process.env.AMAZON_SP_API_CLIENT_SECRET = oldClientSecret;
     if (oldRefreshToken !== undefined) process.env.AMAZON_SP_API_REFRESH_TOKEN = oldRefreshToken;
+    if (oldSyncEnabled === undefined) delete process.env.AMAZON_ORDER_SYNC_ENABLED;
+    else process.env.AMAZON_ORDER_SYNC_ENABLED = oldSyncEnabled;
+    if (oldDemoMode === undefined) delete process.env.AMAZON_DEMO_MODE;
+    else process.env.AMAZON_DEMO_MODE = oldDemoMode;
   }
 });
+
+test('skips Amazon sync without creating demo data when disabled', async () => {
+  const originalFetch = globalThis.fetch;
+  const oldSyncEnabled = process.env.AMAZON_ORDER_SYNC_ENABLED;
+  const oldDemoMode = process.env.AMAZON_DEMO_MODE;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    throw new Error('Amazon sync should not make requests while disabled.');
+  };
+  delete process.env.AMAZON_ORDER_SYNC_ENABLED;
+  delete process.env.AMAZON_DEMO_MODE;
+  try {
+    const result = await runAmazonOrderSync({ reason: 'automation', force: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, true);
+    assert.equal(result.reason, 'disabled');
+    assert.equal(requests, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (oldSyncEnabled === undefined) delete process.env.AMAZON_ORDER_SYNC_ENABLED;
+    else process.env.AMAZON_ORDER_SYNC_ENABLED = oldSyncEnabled;
+    if (oldDemoMode === undefined) delete process.env.AMAZON_DEMO_MODE;
+    else process.env.AMAZON_DEMO_MODE = oldDemoMode;
+  }
+});
+
+test('skips Amazon sync when enabled without credentials unless demo mode is explicit', async () => {
+  const originalFetch = globalThis.fetch;
+  const oldSyncEnabled = process.env.AMAZON_ORDER_SYNC_ENABLED;
+  const oldDemoMode = process.env.AMAZON_DEMO_MODE;
+  const oldClientId = process.env.AMAZON_SP_API_CLIENT_ID;
+  const oldClientSecret = process.env.AMAZON_SP_API_CLIENT_SECRET;
+  const oldRefreshToken = process.env.AMAZON_SP_API_REFRESH_TOKEN;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    throw new Error('Amazon sync should not create demo data implicitly.');
+  };
+  process.env.AMAZON_ORDER_SYNC_ENABLED = 'true';
+  delete process.env.AMAZON_DEMO_MODE;
+  delete process.env.AMAZON_SP_API_CLIENT_ID;
+  delete process.env.AMAZON_SP_API_CLIENT_SECRET;
+  delete process.env.AMAZON_SP_API_REFRESH_TOKEN;
+  try {
+    const result = await runAmazonOrderSync({ reason: 'automation', force: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, true);
+    assert.equal(result.reason, 'missing-amazon-config');
+    assert.equal(requests, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv('AMAZON_ORDER_SYNC_ENABLED', oldSyncEnabled);
+    restoreEnv('AMAZON_DEMO_MODE', oldDemoMode);
+    restoreEnv('AMAZON_SP_API_CLIENT_ID', oldClientId);
+    restoreEnv('AMAZON_SP_API_CLIENT_SECRET', oldClientSecret);
+    restoreEnv('AMAZON_SP_API_REFRESH_TOKEN', oldRefreshToken);
+  }
+});
+
+function restoreEnv(name, value) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
 
 function jsonResponse(payload) {
   return {

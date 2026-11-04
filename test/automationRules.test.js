@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isAuthorizedAutomationRequest } from '../lib/crm/automation-auth.js';
-import { isOrderConfirmationEligible, selectAutomationLane, shouldSkipAutomation } from '../lib/crm/automation.js';
+import { automationResultStatus, isOrderConfirmationEligible, selectAutomationLane, shouldSkipAutomation } from '../lib/crm/automation.js';
 
 test('automation selects Delhivery Express for paid domestic orders', () => {
   const lane = selectAutomationLane({
@@ -63,4 +63,10 @@ test('automation status/run APIs require bearer secret when configured', () => {
     if (originalSecret === undefined) delete process.env.AUTOMATION_SECRET;
     else process.env.AUTOMATION_SECRET = originalSecret;
   }
+});
+
+test('recoverable integration errors produce a partial result instead of a retryable failure', () => {
+  assert.equal(automationResultStatus([], null), 'success');
+  assert.equal(automationResultStatus(['Amazon is disabled'], null), 'partial');
+  assert.equal(automationResultStatus(['Database unavailable'], 'Database unavailable'), 'failed');
 });
