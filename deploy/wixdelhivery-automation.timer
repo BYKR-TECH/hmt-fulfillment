@@ -3,7 +3,9 @@ Description=Run Wix Delhivery automation every 15 minutes
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=15min
+# A cycle can take longer than 15 minutes while carrier APIs respond. Measure
+# from completion so the automation cannot become a continuous workload.
+OnUnitInactiveSec=15min
 AccuracySec=30s
 Unit=wixdelhivery-automation.service
 
