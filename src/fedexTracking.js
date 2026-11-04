@@ -122,7 +122,10 @@ async function getFedexToken(config) {
 
   const body = await safeJson(response);
   if (!response.ok || !body?.access_token) {
-    throw new Error(`FedEx auth failed (${response.status}): ${JSON.stringify(body)}`);
+    const error = new Error(`FedEx auth failed (${response.status}): ${JSON.stringify(body)}`);
+    error.code = 'FEDEX_AUTH_FAILED';
+    error.status = response.status;
+    throw error;
   }
 
   cachedToken = body.access_token;

@@ -7,6 +7,7 @@ import {
   extractFedexTrackingEvents,
   fetchFedexTracking
 } from '../src/fedexTracking.js';
+import { isCourierAuthenticationFailure } from '../src/delhiveryTracking.js';
 
 test('normalizeFedexStatus maps status codes to system states', () => {
   assert.equal(normalizeFedexStatus('DL'), 'delivered');
@@ -23,6 +24,13 @@ test('normalizeFedexStatus maps status codes to system states', () => {
   assert.equal(normalizeFedexStatus('Cancelled'), 'failed');
   assert.equal(normalizeFedexStatus('unknown_dummy'), 'in-transit');
   assert.equal(normalizeFedexStatus(''), 'booked');
+});
+
+test('FedEx authentication failures stop the remaining tracking batches', () => {
+  assert.equal(isCourierAuthenticationFailure('fedex', { code: 'FEDEX_AUTH_FAILED' }), true);
+  assert.equal(isCourierAuthenticationFailure('fedex', { status: 401 }), true);
+  assert.equal(isCourierAuthenticationFailure('fedex', { status: 503 }), false);
+  assert.equal(isCourierAuthenticationFailure('delhivery', { status: 401 }), false);
 });
 
 test('getFedexLiveStatus reads status from tracking package info', () => {

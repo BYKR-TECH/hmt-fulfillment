@@ -300,6 +300,7 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
       const warning = `${courierCode} tracking batch failed: ${error.message}`;
       state.lastWarnings.push(warning);
       logger.error?.(warning);
+      if (isCourierAuthenticationFailure(courierCode, error)) break;
       continue; // skip this batch, try the next
     }
 
@@ -357,6 +358,12 @@ async function pollCourierTracking(courierCode, activeShipments, batchSize, conf
       }
     }
   }
+}
+
+export function isCourierAuthenticationFailure(courierCode, error) {
+  if (courierCode !== 'fedex') return false;
+  const status = Number(error?.status || 0);
+  return error?.code === 'FEDEX_AUTH_FAILED' || status === 401 || status === 403;
 }
 
 // ---------------------------------------------------------------------------
