@@ -97,6 +97,8 @@ test('watermark helpers bound cold runs and advance from orders', () => {
   const config = { woocommerce: { orderSync: { intervalMs: 15 * 60_000 } } };
   const cold = resolveWooModifiedAfterWatermark({}, config, { force: false });
   assert.ok(typeof cold === 'string' && cold.length > 10);
+  const coldAgeHours = (Date.now() - Date.parse(cold)) / (60 * 60_000);
+  assert.ok(coldAgeHours >= 167.9 && coldAgeHours <= 168.1);
 
   const forced = resolveWooModifiedAfterWatermark(
     { watermarkModifiedAfter: '2026-01-01T00:00:00.000Z' },
