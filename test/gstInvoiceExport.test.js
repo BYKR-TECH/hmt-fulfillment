@@ -28,6 +28,7 @@ test('marks international invoices as LUT exports with no GST', () => {
 test('calculates inclusive 18 percent GST only when a domestic order lacks a stored tax amount', () => {
   const row = buildGstInvoiceRow({ total_amount: 1180, shipping_address: { country: 'IN' } });
   assert.equal(row.totalTax, 180);
+  assert.equal(row.billingState, 'Karnataka');
 });
 
 test('includes only paid or approved orders that are not cancelled', () => {
