@@ -2,6 +2,7 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 import { useState } from 'react';
+import { safeNextPath } from '@/lib/safe-next-path';
 
 export default function LoginPage() {
   const [message, setMessage] = useState('');
@@ -29,7 +30,7 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    window.location.href = new URLSearchParams(window.location.search).get('next') || '/';
+    window.location.href = safeNextPath(new URLSearchParams(window.location.search).get('next'));
   }
 
   return (

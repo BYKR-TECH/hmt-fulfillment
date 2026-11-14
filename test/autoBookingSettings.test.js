@@ -59,7 +59,7 @@ test('dry run records proposal and never calls booking or writes shipments/FedEx
 test('configured booking passes courier, package and pickup to source-specific booker', async () => {
   const db = fakeDb(); let captured;
   const configured = settings({ pickupLocation: 'HSR GDP', pickupExplicitlyChosen: true, package: { weightGrams: 900 }, international: { courier: 'fedex', serviceMode: 'international_express' } });
-  await processOrder(db, { ...order, source: 'woocommerce', raw_order: { id: 123 } }, { delhivery: { token: 'secret' }, defaults: {} }, { processed: 0, booked: 0, queued: 0 }, configured, { booking: { bookWooCommerceOrder: async (...args) => { captured = args; return { shipment: { status: 'pending', waybill: '' } }; } } });
+  await processOrder(db, { ...order, source: 'woocommerce', raw_order: { id: 123 } }, { delhivery: { token: 'secret' }, defaults: {} }, { processed: 0, booked: 0, queued: 0 }, configured, { autoBookEnabled: true, booking: { bookWooCommerceOrder: async (...args) => { captured = args; return { shipment: { status: 'pending', waybill: '' } }; } } });
   assert.equal(captured[1].defaults.internationalWeightGrams, 900);
   assert.equal(captured[1].delhivery.pickupLocation, 'HSR GDP');
   assert.equal(captured[1].delhivery.token, 'secret');
