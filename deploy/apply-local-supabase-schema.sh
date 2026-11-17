@@ -16,7 +16,9 @@ mapfile -t migrations < <(find "$source_dir/supabase/migrations" -maxdepth 1 -ty
 
 for migration in "${migrations[@]}"; do
   echo "Applying $(basename "$migration")"
-  docker exec -i supabase-db psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 < "$migration"
+  # Supabase applies each migration file atomically. Preserve that behavior;
+  # several committed migrations use transaction-scoped temporary tables.
+  docker exec -i supabase-db psql --username postgres --dbname postgres --set ON_ERROR_STOP=1 --single-transaction < "$migration"
 done
 
 printf 'release=%s\napplied_at=%s\n' \
