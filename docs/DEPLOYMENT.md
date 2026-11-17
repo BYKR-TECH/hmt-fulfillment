@@ -76,6 +76,9 @@ Production can run a pinned self-hosted Supabase stack on `saipi` when the manag
 project is unavailable. The stack is private on `127.0.0.1:8001`; browsers reach
 only Auth, REST, and Storage through the app's `/local-supabase` gateway. Do not
 expose the Docker gateway, Postgres, Studio, or pooler ports to the network.
+The Pi profile uses Supabase's official Kong gateway override and disables only
+optional image transformations, which require ARM/virtual-address features that
+the Pi 4 does not provide.
 
 The pinned upstream source is the official Supabase self-hosted release recorded
 in `deploy/install-local-supabase.sh`. Generated credentials and database files

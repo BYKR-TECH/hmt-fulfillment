@@ -54,6 +54,8 @@ set_env() {
 }
 
 set_env API_GW_HTTP_PORT 127.0.0.1:8001
+set_env KONG_HTTPS_PORT 127.0.0.1:8445
+set_env COMPOSE_FILE docker-compose.yml:docker-compose.kong.yml:docker-compose.hmt.yml
 set_env SUPABASE_PUBLIC_URL "${public_origin}${public_path}"
 set_env API_EXTERNAL_URL "${public_origin}${public_path}/auth/v1"
 set_env SITE_URL "$public_origin"
@@ -66,10 +68,36 @@ set_env STUDIO_DEFAULT_ORGANIZATION 'Hold My Throttle'
 set_env STUDIO_DEFAULT_PROJECT 'Operations CRM'
 set_env POOLER_TENANT_ID hmt-ops
 
+# Raspberry Pi uses a 39-bit virtual address space, which is incompatible with
+# the current Envoy build's TCMalloc assumptions. Use Supabase's official Kong
+# override and disable optional image transformations (the imgproxy image also
+# requires newer ARM instructions than the Pi 4 provides).
+cat > "$install_dir/docker-compose.hmt.yml" <<'YAML'
+services:
+  storage:
+    depends_on: !override
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+YAML
+
+# Git honors the installer's restrictive umask during checkout. Containers use
+# non-root users, so shipped configuration and initialization SQL must remain
+# readable. Never relax permissions on secrets or persisted customer data.
+find "$install_dir" \
+  \( -path "$install_dir/volumes/db/data" -o -path "$install_dir/volumes/storage" \) -prune -o \
+  -type d -exec chmod 755 {} +
+find "$install_dir" \
+  \( -path "$install_dir/volumes/db/data" -o -path "$install_dir/volumes/storage" \) -prune -o \
+  -type f ! -name .env -exec chmod u+rw,go+r {} +
+chmod 755 "$install_dir/volumes/storage"
 chmod 600 "$install_dir/.env"
 cd "$install_dir"
-docker compose pull --quiet db auth rest realtime storage imgproxy meta studio api-gw
-docker compose up -d --wait db auth rest realtime storage imgproxy meta studio api-gw
+docker compose pull --quiet db auth rest realtime storage meta studio api-gw
+docker compose up -d --wait db auth rest realtime storage meta studio api-gw
 
 curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/auth/v1/health >/dev/null
 rest_status="$(curl --silent --output /dev/null --max-time 10 --write-out '%{http_code}' http://127.0.0.1:8001/rest/v1/)"
