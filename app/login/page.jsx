@@ -1,7 +1,7 @@
 'use client';
 
-import { createBrowserClient } from '@supabase/ssr';
 import { useState } from 'react';
+import { createBrowserAuthClient } from '@/lib/supabase/browser';
 
 export default function LoginPage() {
   const [message, setMessage] = useState('');
@@ -12,14 +12,12 @@ export default function LoginPage() {
     setBusy(true);
     setMessage('');
     const form = new FormData(event.currentTarget);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !anonKey) {
+    const supabase = createBrowserAuthClient();
+    if (!supabase) {
       setMessage('Auth configuration is missing.');
       setBusy(false);
       return;
     }
-    const supabase = createBrowserClient(supabaseUrl, anonKey);
     const { error } = await supabase.auth.signInWithPassword({
       email: form.get('email'),
       password: form.get('password')

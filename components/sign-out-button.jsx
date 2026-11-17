@@ -1,14 +1,12 @@
 'use client';
 
-import { createBrowserClient } from '@supabase/ssr';
 import { LogOut } from 'lucide-react';
+import { createBrowserAuthClient } from '@/lib/supabase/browser';
 
 export function SignOutButton() {
   async function handleSignOut() {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) { window.location.href = '/login'; return; }
-    const supabase = createBrowserClient(url, key);
+    const supabase = createBrowserAuthClient();
+    if (!supabase) { window.location.href = '/login'; return; }
     await supabase.auth.signOut();
     window.location.href = '/login';
   }

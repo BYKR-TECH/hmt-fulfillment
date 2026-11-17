@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { isAuthRequired, isAutomationAuthBypassAllowed, isLocalAuthBypassAllowed, isPublicRoute, isSupabaseGatewayRoute, isWooIngestAuthBypassAllowed } from './lib/auth-guard.js';
 import { hasPermission, permissionForPath } from './lib/access-control.js';
 import { createServerAuthConfig } from './lib/supabase/server.js';
+import { SUPABASE_AUTH_COOKIE_OPTIONS } from './lib/supabase/auth-config.js';
 
 export async function proxy(request) {
   if (request.nextUrl.pathname === '/api/health') return NextResponse.next();
@@ -19,6 +20,7 @@ export async function proxy(request) {
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, anonKey, {
+    cookieOptions: SUPABASE_AUTH_COOKIE_OPTIONS,
     cookies: {
       getAll() {
         return request.cookies.getAll();
