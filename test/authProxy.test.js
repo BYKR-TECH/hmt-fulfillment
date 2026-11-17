@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isAuthRequired, isAutomationAuthBypassAllowed, isLocalAuthBypassAllowed, isPublicRoute, isWooIngestAuthBypassAllowed } from '../lib/auth-guard.js';
+import { isAuthRequired, isAutomationAuthBypassAllowed, isLocalAuthBypassAllowed, isPublicRoute, isSupabaseGatewayRoute, isWooIngestAuthBypassAllowed } from '../lib/auth-guard.js';
 
 function requestFor(hostname, pathname = '/', authorization = '') {
   return {
@@ -44,6 +44,12 @@ test('tracking IDs are public only on the tracking hostname', () => {
   assert.equal(isPublicRoute(requestFor('track.holdmythrottle.com', '/%7B%7B1%7D%7D52270010001982')), true);
   assert.equal(isPublicRoute(requestFor('ops.holdmythrottle.com', '/52270010001982')), false);
   assert.equal(isPublicRoute(requestFor('track.holdmythrottle.com', '/orders')), false);
+});
+
+test('only the dedicated local Supabase prefix bypasses app authentication', () => {
+  assert.equal(isSupabaseGatewayRoute(requestFor('ops.holdmythrottle.com', '/local-supabase/auth/v1/token')), true);
+  assert.equal(isSupabaseGatewayRoute(requestFor('ops.holdmythrottle.com', '/local-supabase')), true);
+  assert.equal(isSupabaseGatewayRoute(requestFor('ops.holdmythrottle.com', '/local-supabase-admin')), false);
 });
 
 test('automation bearer bypass is limited to protected automation APIs', () => {

@@ -23,7 +23,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: bash -n deploy/deploy-main.sh
+      - run: bash -n deploy/*.sh
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
