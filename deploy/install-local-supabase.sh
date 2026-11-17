@@ -96,8 +96,8 @@ find "$install_dir" \
 chmod 755 "$install_dir/volumes/storage"
 chmod 600 "$install_dir/.env"
 cd "$install_dir"
-docker compose pull --quiet db auth rest studio api-gw
-docker compose up -d --wait db auth rest studio api-gw
+docker compose pull --quiet db auth rest storage studio api-gw
+docker compose up -d --wait --wait-timeout 120 db auth rest storage studio api-gw
 
 anon_key="$(sed -n 's/^ANON_KEY=//p' .env | tail -n 1)"
 service_key="$(sed -n 's/^SERVICE_ROLE_KEY=//p' .env | tail -n 1)"
