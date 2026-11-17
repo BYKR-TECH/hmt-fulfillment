@@ -70,6 +70,66 @@ ssh saipi 'rm -f /home/saipi/wixdelhivery-shared/deploy-paused && sudo systemctl
 
 Database migrations are reviewed separately. The deployer never runs schema changes automatically. Include backward-compatible migration work and verification in a PR when a change requires it; never remove columns needed by the previous release during rollout.
 
+## Local Supabase recovery
+
+Production can run a pinned self-hosted Supabase stack on `saipi` when the managed
+project is unavailable. The stack is private on `127.0.0.1:8001`; browsers reach
+only Auth, REST, and Storage through the app's `/local-supabase` gateway. Do not
+expose the Docker gateway, Postgres, Studio, or pooler ports to the network.
+
+The pinned upstream source is the official Supabase self-hosted release recorded
+in `deploy/install-local-supabase.sh`. Generated credentials and database files
+live in `/home/saipi/hmt-local-supabase` and must never be committed.
+
+After this change passes `Validate`, prepare the stack before merging so the
+current release keeps its existing environment until the replacement is ready:
+
+```sh
+ssh saipi '/path/to/validated/checkout/deploy/install-local-supabase.sh'
+ssh saipi 'HMT_RELEASE_DIR=/home/saipi/wixdelhivery /path/to/validated/checkout/deploy/apply-local-supabase-schema.sh'
+```
+
+Create at least one Auth user and matching active `public.users` admin profile
+before cutover. The helper generates a one-time temporary password when
+`HMT_LOCAL_ADMIN_PASSWORD` is not set:
+
+```sh
+ssh saipi 'node /path/to/validated/checkout/deploy/create-local-supabase-admin.mjs admin@example.com "Admin name"'
+```
+
+Do not load `supabase/seed.sql` in production because it contains
+demo customers and orders. Restore a managed-platform dump when available;
+otherwise rebuild source orders through the Wix and Woo sync jobs and preserve
+the managed project for a later history merge.
+
+Verify Auth and REST locally, then point the shared app environment at it:
+
+```sh
+ssh saipi 'curl -fsS http://127.0.0.1:8001/auth/v1/health'
+ssh saipi '/path/to/validated/checkout/deploy/configure-app-local-supabase.sh'
+```
+
+Merge only after those checks. The next validated `main` deployment builds the
+browser bundle with `NEXT_PUBLIC_SUPABASE_URL=https://ops.holdmythrottle.com/local-supabase`.
+After deployment, verify login and a read/write operation; then install and enable
+the daily backup units:
+
+```sh
+sudo cp deploy/hmt-local-supabase-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hmt-local-supabase-backup.timer
+sudo systemctl start hmt-local-supabase-backup.service
+```
+
+Backups are retained for 14 days under
+`/home/saipi/wixdelhivery-shared/local-supabase-backups`. Periodically copy an
+encrypted backup off the Pi; self-hosted Supabase has no managed backup service.
+
+To roll back, restore the `.env.before-local-supabase-*` file created by the
+configuration script and deploy a newly validated commit so public Supabase
+values are rebuilt into the browser bundle. Do not delete the local stack or its
+data during rollback.
+
 ## Repair Woo orders misclassified by legacy Wix booking
 
 Deploy the Woo import routing fix before running this data-only repair. It keeps
