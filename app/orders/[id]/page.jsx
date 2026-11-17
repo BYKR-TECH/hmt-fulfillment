@@ -3,12 +3,13 @@ import { notFound } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { OrderDetailForm } from '@/components/order-detail-form';
 import { OrderContents } from '@/components/order-contents';
+import { OrderStatusControl } from '@/components/order-status-control';
 import { PackingForm } from '@/components/packing-form';
 import { ShipmentForm } from '@/components/shipment-form';
 import { ShipmentActions } from '@/components/shipment-actions';
 import { ShippingLabelUpload } from '@/components/shipping-label-upload';
 import { StatusPill } from '@/components/status-pill';
-import { COMMUNICATION_TYPES } from '@/lib/crm/constants';
+import { COMMUNICATION_TYPES, isTerminalOrderStatus } from '@/lib/crm/constants';
 import { formatCurrency, getOrder, shipmentFailureReason } from '@/lib/crm/data';
 import { getCrmSettings } from '@/lib/crm/data-settings';
 
@@ -26,7 +27,7 @@ export default async function OrderDetailPage({ params, searchParams }) {
   // A paid order may need additional shipment legs after its original fulfillment
   // (for example, a replacement, reverse pickup, or RTO). Keep booking available
   // for those orders; cancelled and unpaid orders remain ineligible.
-  const canBookShipment = paid && !['cancelled', 'not_paid'].includes(order.internal_status);
+  const canBookShipment = paid && !isTerminalOrderStatus(order.internal_status);
   const communicationOptions = COMMUNICATION_TYPES.filter(([type]) => {
     if (type === 'tracking-link') return Boolean(order.tracking_url || order.awb_number);
     if (type === 'feedback-request' || type === 'review-request') return ['delivered', 'installation_pending', 'completed', 'fulfilled_no_tracking'].includes(order.internal_status);
@@ -100,6 +101,8 @@ export default async function OrderDetailPage({ params, searchParams }) {
         <article className="card metric"><span>Feedback</span><StatusPill value={order.feedback_status} /></article>
         <article className="card metric"><span>Payment</span><StatusPill value={order.payment_status || detail.payment?.payment_status || 'not_set'} /><small>{formatCurrency(detail.payment?.paid_amount || order.order_value, order.currency)}</small></article>
       </section>
+
+      <OrderStatusControl order={order} />
 
       <section className="grid orderOpsGrid">
         <div className="panel opsMain">
