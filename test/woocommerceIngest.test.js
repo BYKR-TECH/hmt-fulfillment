@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeWooCommerceOrder } from '../src/fulfillment.js';
+import { shouldPersistWooCommerceOrder } from '../src/store.js';
 import { isAuthorizedWooIngestRequest } from '../lib/crm/woo-ingest-auth.js';
 import { isWooIngestAuthBypassAllowed } from '../lib/auth-guard.js';
 
@@ -33,6 +34,14 @@ test('accepts wrapped Woo payloads and maps pending payment', () => {
   const normalized = normalizeWooCommerceOrder({ order: pending });
   assert.equal(normalized.order.payment_status, 'pending');
   assert.equal(normalized.order.status, 'pending');
+});
+
+test('only creates paid Woo orders while retaining status sync for existing orders', () => {
+  assert.equal(shouldPersistWooCommerceOrder({ payment_status: 'paid' }, null), true);
+  assert.equal(shouldPersistWooCommerceOrder({ payment_status: 'pending' }, null), false);
+  assert.equal(shouldPersistWooCommerceOrder({ payment_status: 'not_paid' }, null), false);
+  assert.equal(shouldPersistWooCommerceOrder({ payment_status: 'refunded' }, null), false);
+  assert.equal(shouldPersistWooCommerceOrder({ payment_status: 'pending' }, { id: 'existing' }), true);
 });
 
 test('shipped Woo orders remain paid and fulfilled when pulled back into Ops', () => {

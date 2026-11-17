@@ -64,6 +64,8 @@ Authenticated Ops UI sessions can also POST without the bearer (proxy session au
 
 - `GET /wp-json/wc/v3/orders` with Basic auth (`WOO_CONSUMER_KEY:WOO_CONSUMER_SECRET`)
 - Bounded by `modified_after` watermark + `WOO_ORDER_SYNC_MAX_PAGES`
+- Creates Ops records only for paid Woo orders; unpaid orders are ignored until Woo marks them paid
+- Continues syncing status changes for Woo orders that already exist in Ops
 - Upserts via existing `upsertWooCommerceOrder(s)` (`source=woocommerce`, `woo_order_id`)
 - Returns pulled / persisted / created / updated / error counts
 

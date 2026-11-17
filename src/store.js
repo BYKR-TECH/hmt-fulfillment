@@ -1004,6 +1004,7 @@ async function upsertSupabaseWooCommerceOrder(supabase, wooPayload) {
   const normalized = normalizeWooCommerceOrder(wooPayload, getConfig());
   const wooOrderId = normalized.order.woo_order_id;
   const existingOrder = await findSupabaseOrderByWooId(supabase, wooOrderId);
+  if (!shouldPersistWooCommerceOrder(normalized.order, existingOrder)) return null;
   const customer = await upsertAmazonCustomer(supabase, normalized.customer);
   const shippingAddress = existingOrder?.shipping_address_id
     ? { id: existingOrder.shipping_address_id }
@@ -1058,6 +1059,12 @@ async function upsertSupabaseWooCommerceOrder(supabase, wooPayload) {
     'woocommerce order ingest'
   );
   return { order: savedOrder, created: !existingOrder, updated: Boolean(existingOrder) };
+}
+
+export function shouldPersistWooCommerceOrder(sourceOrder, existingOrder) {
+  // Ops starts tracking a Woo order only after payment. Existing records still
+  // need later status updates (for example cancellation or refund changes).
+  return Boolean(existingOrder) || sourceOrder?.payment_status === 'paid';
 }
 
 function buildWooCrmStatusPatch(existingOrder, sourceOrder) {
