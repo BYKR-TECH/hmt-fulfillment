@@ -10,7 +10,6 @@ readonly public_path="${HMT_SUPABASE_PUBLIC_PATH:-/local-supabase}"
 
 [[ -f "$install_dir/.env" ]]
 [[ -f "$app_env" ]]
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/auth/v1/health >/dev/null
 
 read_secret() {
   sed -n "s/^$1=//p" "$install_dir/.env" | tail -n 1
@@ -19,6 +18,7 @@ read_secret() {
 anon_key="$(read_secret ANON_KEY)"
 service_key="$(read_secret SERVICE_ROLE_KEY)"
 [[ -n "$anon_key" && -n "$service_key" ]]
+curl --fail --silent --show-error --max-time 10 -H "apikey: $anon_key" http://127.0.0.1:8001/auth/v1/health >/dev/null
 
 backup="${app_env}.before-local-supabase-$(date +%Y%m%dT%H%M%S)"
 cp -p "$app_env" "$backup"

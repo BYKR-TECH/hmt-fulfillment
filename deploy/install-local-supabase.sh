@@ -96,10 +96,11 @@ find "$install_dir" \
 chmod 755 "$install_dir/volumes/storage"
 chmod 600 "$install_dir/.env"
 cd "$install_dir"
-docker compose pull --quiet db auth rest realtime storage meta studio api-gw
-docker compose up -d --wait db auth rest realtime storage meta studio api-gw
+docker compose pull --quiet db auth rest studio api-gw
+docker compose up -d --wait db auth rest studio api-gw
 
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/auth/v1/health >/dev/null
-rest_status="$(curl --silent --output /dev/null --max-time 10 --write-out '%{http_code}' http://127.0.0.1:8001/rest/v1/)"
-[[ "$rest_status" == 401 ]]
+anon_key="$(sed -n 's/^ANON_KEY=//p' .env | tail -n 1)"
+service_key="$(sed -n 's/^SERVICE_ROLE_KEY=//p' .env | tail -n 1)"
+curl --fail --silent --show-error --max-time 10 -H "apikey: $anon_key" http://127.0.0.1:8001/auth/v1/health >/dev/null
+curl --fail --silent --show-error --max-time 10 -H "apikey: $service_key" -H "Authorization: Bearer $service_key" http://127.0.0.1:8001/rest/v1/ >/dev/null
 echo 'Local Supabase is installed and healthy on 127.0.0.1:8001.'
