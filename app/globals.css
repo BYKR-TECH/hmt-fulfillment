@@ -922,6 +922,33 @@ label span {
   gap: 8px;
 }
 
+.orderStatusControl {
+  margin-top: 14px;
+}
+
+.orderStatusFields {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(240px, 1.3fr) auto;
+}
+
+.orderStatusFields label {
+  margin: 0;
+}
+
+.statusQuickActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .orderStatusFields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .printArea {
   border: 1px dashed var(--line);
   border-radius: 8px;
