@@ -128,6 +128,22 @@ Backups are retained for 14 days under
 `/home/saipi/wixdelhivery-shared/local-supabase-backups`. Periodically copy an
 encrypted backup off the Pi; self-hosted Supabase has no managed backup service.
 
+If Woo orders were restored from the store after a local cutover but their
+shipment rows were not, recover the AWB/carrier/status metadata without calling
+a courier or creating a fulfillment. Run the command without `--apply` first,
+then take a database backup and apply with a restricted backup directory outside
+the release checkout:
+
+```sh
+node scripts/recover-woo-shipment-metadata.js
+node scripts/recover-woo-shipment-metadata.js --apply \
+  --backup-dir=/home/saipi/wixdelhivery-shared/repair-backups/<unique-run>
+```
+
+The recovery restores dynamic Delhivery label access from the AWB. FedEx label
+PDFs are returned only when the shipment is originally created and must be
+reprinted or uploaded if the former database copy is unavailable.
+
 To roll back, restore the `.env.before-local-supabase-*` file created by the
 configuration script and deploy a newly validated commit so public Supabase
 values are rebuilt into the browser bundle. Do not delete the local stack or its
