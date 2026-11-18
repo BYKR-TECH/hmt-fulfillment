@@ -178,7 +178,12 @@ function validTimestamp(value) {
 }
 
 function sameValue(left, right) {
+  if (isoTimestamp(left) && isoTimestamp(right)) return Date.parse(left) === Date.parse(right);
   return (left ?? null) === (right ?? null);
+}
+
+function isoTimestamp(value) {
+  return /^\d{4}-\d{2}-\d{2}T/.test(String(value || '')) && Number.isFinite(Date.parse(value));
 }
 
 function stripUndefined(object) {
