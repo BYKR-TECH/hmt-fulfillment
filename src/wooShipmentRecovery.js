@@ -62,7 +62,7 @@ export function planWooShipmentRecoveries(orders = [], shipments = []) {
     const desiredLabelUrl = recovered.courier === 'delhivery' && shipmentId
       ? `/api/crm/shipments/${shipmentId}/label-file`
       : '';
-    const orderPatch = buildRecoveredOrderPatch(order, recovered, desiredLabelUrl);
+    const orderPatch = buildRecoveredOrderPatch(order, recovered, matchingShipment, desiredLabelUrl);
     const shipmentNeedsLabel = Boolean(matchingShipment && desiredLabelUrl && !matchingShipment.label_url);
     if (matchingShipment && !shipmentNeedsLabel && !Object.keys(orderPatch).length) continue;
     plan.push({ order, recovered, matchingShipment, desiredLabelUrl, orderPatch });
@@ -128,7 +128,11 @@ export function trackingUrlFor(courier, waybill) {
   return `https://www.delhivery.com/track/package/${encoded}`;
 }
 
-function buildRecoveredOrderPatch(order, recovered, labelUrl) {
+function buildRecoveredOrderPatch(order, recovered, matchingShipment, labelUrl) {
+  const storedLabelUrl = String(order.shipment_label_url || '').trim();
+  const manualLabelStored = Boolean(matchingShipment?.carrier_response?.manual_label_storage_path);
+  const usableStoredLabel = Boolean(storedLabelUrl && (!storedLabelUrl.startsWith('/api/crm/shipments/') || manualLabelStored));
+  const unavailableCarrierLabel = recovered.courier !== 'delhivery' && !usableStoredLabel;
   const desired = {
     shipment_waybill: recovered.waybill,
     shipment_courier_code: recovered.courier,
@@ -138,6 +142,11 @@ function buildRecoveredOrderPatch(order, recovered, labelUrl) {
     tracking_url: recovered.trackingUrl,
     shipment_booked_at: recovered.sourceSyncedAt || order.source_updated_at || order.source_created_at || null,
     ...(labelUrl ? { shipment_label_url: labelUrl, shipment_label_format: 'pdf', shipment_label_error: null } : {}),
+    ...(unavailableCarrierLabel ? {
+      shipment_label_url: null,
+      shipment_label_format: null,
+      shipment_label_error: 'The original carrier label was not available after database recovery. Reprint it with the carrier or upload a saved copy.'
+    } : {}),
     ...(!TERMINAL_ORDER_STATUSES.has(normalizeStatus(order.internal_status))
       ? { last_automation_status: 'post-awb-complete', last_automation_error: null }
       : {}),

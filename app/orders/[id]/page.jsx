@@ -54,7 +54,7 @@ export default async function OrderDetailPage({ params, searchParams }) {
   const trackingUrl = order.tracking_url || '';
   const awb = order.awb_number || '';
   const courier = order.courier || latestShipment?.courier_code || latestShipment?.courier || '';
-  const labelUrl = order.label_url || latestShipment?.label_url || (latestShipment?.id ? `/api/crm/shipments/${latestShipment.id}/label-file` : '');
+  const labelUrl = order.label_url || latestShipment?.label_url || (latestShipment?.id && latestShipment?.courier_code === 'delhivery' ? `/api/crm/shipments/${latestShipment.id}/label-file` : '');
   const deliveryMode = deliveryModeDetails(order.delivery_method);
   const installationMode = installationModeDetails(order.installation_method, order.install_location);
 
