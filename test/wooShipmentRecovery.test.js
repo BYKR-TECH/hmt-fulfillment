@@ -89,3 +89,19 @@ test('restores a dynamic Delhivery label link without inventing a carrier PDF', 
   assert.equal(row.courier_code, 'delhivery');
   assert.equal(row.label_url, `/api/crm/shipments/${row.id}/label-file`);
 });
+
+test('replaces a broken placeholder label with an actionable recovery message', () => {
+  const order = {
+    id: 'order-6',
+    order_number: '11237',
+    source: 'woocommerce',
+    internal_status: 'shipment_booked',
+    shipment_label_url: '/api/crm/shipments/placeholder/label-file',
+    shipment_label_format: 'pdf',
+    raw_order: rawOrder()
+  };
+  const [planned] = planWooShipmentRecoveries([order], []);
+  assert.equal(planned.orderPatch.shipment_label_url, null);
+  assert.equal(planned.orderPatch.shipment_label_format, null);
+  assert.match(planned.orderPatch.shipment_label_error, /Reprint it with the carrier or upload/);
+});
