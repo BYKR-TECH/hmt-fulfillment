@@ -56,7 +56,12 @@ test('plans missing shipments, preserves terminal order state, and is idempotent
   assert.equal(planned.orderPatch.internal_status, undefined);
   assert.equal(planned.orderPatch.last_automation_status, undefined);
   const matching = buildRecoveredShipmentRow(order, planned.recovered);
-  const alreadyRepaired = { ...order, ...planned.orderPatch, shipment_waybill: planned.recovered.waybill };
+  const alreadyRepaired = {
+    ...order,
+    ...planned.orderPatch,
+    shipment_waybill: planned.recovered.waybill,
+    shipment_booked_at: '2026-11-16T06:22:40.000+00:00'
+  };
   assert.equal(planWooShipmentRecoveries([alreadyRepaired], [matching]).length, 0);
 });
 
