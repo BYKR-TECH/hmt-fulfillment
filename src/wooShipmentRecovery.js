@@ -63,9 +63,9 @@ export function planWooShipmentRecoveries(orders = [], shipments = []) {
       ? `/api/crm/shipments/${shipmentId}/label-file`
       : '';
     const orderPatch = buildRecoveredOrderPatch(order, recovered, matchingShipment, desiredLabelUrl);
-    const shipmentNeedsLabel = Boolean(matchingShipment && desiredLabelUrl && !matchingShipment.label_url);
-    if (matchingShipment && !shipmentNeedsLabel && !Object.keys(orderPatch).length) continue;
-    plan.push({ order, recovered, matchingShipment, desiredLabelUrl, orderPatch });
+    const shipmentPatch = buildRecoveredShipmentPatch(matchingShipment, recovered, desiredLabelUrl);
+    if (matchingShipment && !Object.keys(shipmentPatch).length && !Object.keys(orderPatch).length) continue;
+    plan.push({ order, recovered, matchingShipment, desiredLabelUrl, shipmentPatch, orderPatch });
   }
   return plan;
 }
@@ -116,8 +116,8 @@ export function inferCourier(waybill, value = '') {
   const compact = normalizeWaybill(waybill).toUpperCase();
   if (/^DL[A-Z0-9]+XB$/.test(compact) || /^5227\d{10}$/.test(compact)) return 'delhivery';
   const supplied = String(value || '').trim().toLowerCase().replaceAll(' ', '_');
+  if (/^\d{12}$/.test(compact) && (!supplied || supplied === 'delhivery')) return 'fedex';
   if (supplied) return supplied === 'ship_rocket' ? 'shiprocket' : supplied;
-  if (/^\d{12}$/.test(compact)) return 'fedex';
   return 'delhivery';
 }
 
@@ -155,6 +155,21 @@ function buildRecoveredOrderPatch(order, recovered, matchingShipment, labelUrl) 
       : {})
   };
   return Object.fromEntries(Object.entries(desired).filter(([key, value]) => !sameValue(order[key], value)));
+}
+
+function buildRecoveredShipmentPatch(shipment, recovered, labelUrl) {
+  if (!shipment) return {};
+  const manualLabelStored = Boolean(shipment.carrier_response?.manual_label_storage_path);
+  const brokenGeneratedLabel = recovered.courier !== 'delhivery'
+    && !manualLabelStored
+    && String(shipment.label_url || '').startsWith('/api/crm/shipments/');
+  const desired = {
+    courier_code: recovered.courier,
+    tracking_url: recovered.trackingUrl,
+    ...(labelUrl && !shipment.label_url ? { label_url: labelUrl, label_format: 'pdf', label_error: null } : {}),
+    ...(brokenGeneratedLabel ? { label_url: null, label_format: null, label_error: null } : {})
+  };
+  return Object.fromEntries(Object.entries(desired).filter(([key, value]) => !sameValue(shipment[key], value)));
 }
 
 function internalStatusForShipment(status) {

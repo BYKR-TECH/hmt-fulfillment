@@ -51,12 +51,15 @@ async function main() {
       shipment = await db.insert('shipments', buildRecoveredShipmentRow(item.order, item.recovered, recoveredAt));
       inserted += 1;
     }
+    const shipmentPatch = { ...item.shipmentPatch };
     if (item.recovered.courier === 'delhivery' && !shipment.label_url) {
-      const dynamicLabelUrl = `/api/crm/shipments/${shipment.id}/label-file`;
+      shipmentPatch.label_url = `/api/crm/shipments/${shipment.id}/label-file`;
+      shipmentPatch.label_format = 'pdf';
+      shipmentPatch.label_error = null;
+    }
+    if (Object.keys(shipmentPatch).length) {
       shipment = await db.patch('shipments', `id=eq.${shipment.id}`, {
-        label_url: dynamicLabelUrl,
-        label_format: 'pdf',
-        label_error: null,
+        ...shipmentPatch,
         updated_at: recoveredAt
       });
       updated += 1;
