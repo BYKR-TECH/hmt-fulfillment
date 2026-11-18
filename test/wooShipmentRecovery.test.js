@@ -43,6 +43,8 @@ test('extracts the Woo shipment write-back as a safe local recovery record', () 
 test('corrects legacy carrier mistakes using the AWB format', () => {
   assert.equal(inferCourier('DL346816095XB', 'fedex'), 'delhivery');
   assert.equal(inferCourier('52270010002063', 'fedex'), 'delhivery');
+  assert.equal(inferCourier('384889383399', 'delhivery'), 'fedex');
+  assert.equal(inferCourier('879399174173', 'shiprocket'), 'shiprocket');
   assert.equal(inferCourier('34932186984', 'shiprocket'), 'shiprocket');
 });
 
@@ -104,4 +106,24 @@ test('replaces a broken placeholder label with an actionable recovery message', 
   assert.equal(planned.orderPatch.shipment_label_url, null);
   assert.equal(planned.orderPatch.shipment_label_format, null);
   assert.match(planned.orderPatch.shipment_label_error, /Reprint it with the carrier or upload/);
+});
+
+test('repairs stale carrier and generated label fields on a matching shipment', () => {
+  const order = { id: 'order-7', order_number: '11237', source: 'woocommerce', internal_status: 'shipment_booked', raw_order: rawOrder({ _hmt_carrier: 'delhivery' }) };
+  const shipment = {
+    id: 'shipment-7',
+    order_id: order.id,
+    waybill: '384889383399',
+    courier_code: 'fedex',
+    tracking_url: 'https://www.delhivery.com/track/package/384889383399',
+    label_url: '/api/crm/shipments/shipment-7/label-file',
+    label_format: 'pdf',
+    carrier_response: {}
+  };
+  const [planned] = planWooShipmentRecoveries([order], [shipment]);
+  assert.equal(planned.recovered.courier, 'fedex');
+  assert.equal(planned.shipmentPatch.courier_code, undefined);
+  assert.equal(planned.shipmentPatch.tracking_url, 'https://www.fedex.com/fedextrack/?trknbr=384889383399');
+  assert.equal(planned.shipmentPatch.label_url, null);
+  assert.equal(planned.shipmentPatch.label_format, null);
 });
