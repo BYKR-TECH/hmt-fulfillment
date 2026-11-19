@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildOrderConfirmationTemplate, formatChatwootDailyTracker, getChatwootDailyTracker, sendChatwootAbandonedCart, sendChatwootDeliveryConfirmation, sendChatwootOrderConfirmation, sendChatwootShipmentConfirmation, sendChatwootTrackingMessage, summarizeAssigneeBacklog } from '../lib/crm/chatwoot.js';
+import { buildOrderConfirmationTemplate, formatChatwootDailyTracker, getChatwootDailyTracker, sendChatwootAbandonedCart, sendChatwootDeliveryConfirmation, sendChatwootOrderConfirmation, sendChatwootShipmentConfirmation, summarizeAssigneeBacklog } from '../lib/crm/chatwoot.js';
 
 const bounds = {
   date: '2026-09-14',
@@ -37,7 +37,7 @@ test('loads exact daily counts and paginated current backlog from Chatwoot', asy
 
   const report = await getChatwootDailyTracker(bounds, {
     fetchImpl,
-    env: { CHATWOOT_BASE_URL: 'https://chat.example.com/', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token', CHATWOOT_BOT_ACCESS_TOKEN: 'bot-token', CHATWOOT_BOT_ID: '77' }
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com/', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
 
   assert.equal(report.openedCount, 12);
@@ -86,7 +86,6 @@ test('sends the approved Meta template through an existing Chatwoot conversation
     }
     if (url.pathname.endsWith('/contacts/56') && options.method === 'PUT') return jsonResponse({ payload: { contact: { id: 56, phone_number: '+919876543210', contact_inboxes: [{ source_id: '919876543210', inbox: { id: 1 } }] } } });
     if (url.pathname.endsWith('/contacts/56/conversations')) return jsonResponse({ payload: [{ id: 1303, inbox_id: 1, status: 'resolved' }] });
-    if (url.pathname.endsWith('/conversations/1303/assignments')) return jsonResponse({ id: 77 });
     if (url.pathname.endsWith('/conversations/1303/messages')) return jsonResponse({ id: 19320, status: 'sent' });
     return jsonResponse({ error: 'unexpected' }, 404);
   };
@@ -102,7 +101,7 @@ test('sends the approved Meta template through an existing Chatwoot conversation
     language: 'en_US',
     category: 'UTILITY',
     fetchImpl,
-    env: { CHATWOOT_BASE_URL: 'https://chat.example.com/', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token', CHATWOOT_BOT_ACCESS_TOKEN: 'bot-token', CHATWOOT_BOT_ID: '77' }
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com/', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
 
   assert.equal(result.providerMessageId, '19320');
@@ -134,7 +133,6 @@ test('creates a Chatwoot contact and conversation when the buyer is new', async 
     if (url.pathname.endsWith('/contacts/70') && options.method === 'PUT') return jsonResponse({ payload: { contact: { id: 70, phone_number: '+919999999999', contact_inboxes: [{ source_id: '919999999999', inbox: { id: 1 } }] } } });
     if (url.pathname.endsWith('/contacts/70/conversations')) return jsonResponse({ payload: [] });
     if (url.pathname.endsWith('/conversations') && options.method === 'POST') return jsonResponse({ id: 1400, inbox_id: 1 });
-    if (url.pathname.endsWith('/conversations/1400/assignments')) return jsonResponse({ id: 77 });
     if (url.pathname.endsWith('/conversations/1400/messages')) return jsonResponse({ id: 19400, status: 'sent' });
     return jsonResponse({ error: 'unexpected' }, 404);
   };
@@ -143,7 +141,7 @@ test('creates a Chatwoot contact and conversation when the buyer is new', async 
     id: 'new-order', order_number: '1002', customers: { name: 'Asha', phone: '09999999999' }, order_items: [{ product_name: 'KTM 390' }]
   }, {
     inboxId: '1', fetchImpl,
-    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token', CHATWOOT_BOT_ACCESS_TOKEN: 'bot-token', CHATWOOT_BOT_ID: '77' }
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
 
   assert.equal(result.conversationId, '1400');
@@ -164,7 +162,6 @@ test('sends the approved pickup template with tracking button parameters', async
     requests.push({ url, options });
     if (url.pathname.endsWith('/contacts/search')) return jsonResponse({ payload: [{ id: 56, phone_number: '+919876543210' }] });
     if (url.pathname.endsWith('/contacts/56/conversations')) return jsonResponse({ payload: [{ id: 1303, inbox_id: 1 }] });
-    if (url.pathname.endsWith('/conversations/1303/assignments')) return jsonResponse({ id: 77 });
     if (url.pathname.endsWith('/conversations/1303/messages')) return jsonResponse({ id: 19701, status: 'sent' });
     return jsonResponse({ error: 'unexpected' }, 404);
   };
@@ -172,7 +169,7 @@ test('sends the approved pickup template with tracking button parameters', async
     id: 'order-id', order_number: '#12345', customers: { name: 'John', phone: '9876543210' }
   }, { waybill: '5227 0010 001890' }, {
     inboxId: '1', fetchImpl,
-    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token', CHATWOOT_BOT_ACCESS_TOKEN: 'bot-token', CHATWOOT_BOT_ID: '77' }
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
   assert.equal(result.providerMessageId, '19701');
   const message = requests.find(request => request.url.pathname.endsWith('/conversations/1303/messages'));
@@ -186,7 +183,7 @@ test('sends the approved delivery template with customer and order variables', a
   const fetchImpl = existingConversationFetch(requests, 19801);
   await sendChatwootDeliveryConfirmation({ order_number: '#12345', customers: { name: 'John', phone: '9876543210' } }, {
     inboxId: '1', fetchImpl,
-    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token', CHATWOOT_BOT_ACCESS_TOKEN: 'bot-token', CHATWOOT_BOT_ID: '77' }
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
   const body = JSON.parse(requests.find(request => request.url.pathname.endsWith('/conversations/1303/messages')).options.body);
   assert.equal(body.template_params.name, 'delivery_confirmation_1');
@@ -198,7 +195,7 @@ test('sends named abandoned-cart variables and the product-page slug', async () 
   const fetchImpl = existingConversationFetch(requests, 19802);
   await sendChatwootAbandonedCart({ customer_name: 'Asha', phone: '9876543210', items: [{ name: 'Cruise Control', url: 'https://www.holdmythrottle.com/product-page/himalayan-450-cruise-control' }] }, {
     inboxId: '1', fetchImpl,
-    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token', CHATWOOT_BOT_ACCESS_TOKEN: 'bot-token', CHATWOOT_BOT_ID: '77' }
+    env: { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'token' }
   });
   const body = JSON.parse(requests.find(request => request.url.pathname.endsWith('/conversations/1303/messages')).options.body);
   assert.equal(body.template_params.name, 'abandoned_cart');
@@ -212,72 +209,10 @@ function existingConversationFetch(requests, messageId) {
     requests.push({ url, options });
     if (url.pathname.endsWith('/contacts/search')) return jsonResponse({ payload: [{ id: 56, phone_number: '+919876543210' }] });
     if (url.pathname.endsWith('/contacts/56/conversations')) return jsonResponse({ payload: [{ id: 1303, inbox_id: 1 }] });
-    if (url.pathname.endsWith('/conversations/1303/assignments')) return jsonResponse({ id: 77 });
     if (url.pathname.endsWith('/conversations/1303/messages')) return jsonResponse({ id: messageId, status: 'sent' });
     return jsonResponse({ error: 'unexpected' }, 404);
   };
 }
-
-test('assigns each order update to Rocker and sends as the bot', async () => {
-  const requests = [];
-  const env = {
-    CHATWOOT_BASE_URL: 'https://chat.example.com',
-    CHATWOOT_ACCOUNT_ID: '7',
-    CHATWOOT_API_TOKEN: 'human-token',
-    CHATWOOT_BOT_ACCESS_TOKEN: 'rocker-token',
-    CHATWOOT_BOT_ID: '1'
-  };
-  const fetchImpl = async (input, options = {}) => {
-    const path = new URL(input).pathname;
-    requests.push({ path, options });
-    if (path.endsWith('/contacts/search')) return jsonResponse({ payload: [{ id: 56, phone_number: '+919876543210' }] });
-    if (path.endsWith('/contacts/56') && options.method === 'PUT') return jsonResponse({ payload: { contact: { id: 56, phone_number: '+919876543210' } } });
-    if (path.endsWith('/contacts/56/conversations')) return jsonResponse({ payload: [{ id: 1303, inbox_id: 1 }] });
-    if (path.endsWith('/conversations/1303/assignments')) return jsonResponse({ id: 1, name: 'Rocker' });
-    if (path.endsWith('/conversations/1303/messages')) return jsonResponse({ id: 19701, status: 'sent' });
-    return jsonResponse({ error: 'unexpected' }, 404);
-  };
-  const order = { order_number: '#12345', chatwoot_conversation_id: 1303, customers: { name: 'John', phone: '9876543210' } };
-  const options = { env, fetchImpl, inboxId: '1' };
-  await sendChatwootOrderConfirmation(order, options);
-  await sendChatwootShipmentConfirmation(order, { waybill: '123456' }, options);
-  await sendChatwootDeliveryConfirmation(order, options);
-  await sendChatwootTrackingMessage(order, { waybill: '123456' }, options);
-  await sendChatwootAbandonedCart({ customer_name: 'John', phone: '9876543210', items: [{ name: 'Cruise Control', url: 'https://www.holdmythrottle.com/product-page/cruise-control' }] }, options);
-
-  const sends = requests.filter(request => request.path.endsWith('/messages'));
-  const assignments = requests.filter(request => request.path.endsWith('/assignments'));
-  assert.equal(sends.length, 5);
-  assert.equal(assignments.length, 5);
-  for (const send of sends) {
-    assert.equal(send.options.headers['api-access-token'], 'rocker-token');
-    assert.equal(JSON.parse(send.options.body).message_type, 'outgoing');
-  }
-  for (const assignment of assignments) {
-    assert.equal(assignment.options.headers['api-access-token'], 'human-token');
-    assert.deepEqual(JSON.parse(assignment.options.body), { assignee_id: 1, assignee_type: 'AgentBot' });
-  }
-  for (let index = 0; index < requests.length; index += 1) {
-    if (requests[index].path.endsWith('/messages')) assert.ok(requests[index - 1].path.endsWith('/assignments'));
-  }
-});
-
-test('does not send from the human account when bot credentials or assignment are unavailable', async () => {
-  const order = { chatwoot_conversation_id: 1303 };
-  const env = { CHATWOOT_BASE_URL: 'https://chat.example.com', CHATWOOT_ACCOUNT_ID: '7', CHATWOOT_API_TOKEN: 'human-token' };
-  await assert.rejects(() => sendChatwootTrackingMessage(order, {}, { env, fetchImpl: () => { throw new Error('unexpected request'); } }), /CHATWOOT_BOT_ACCESS_TOKEN/);
-
-  const requests = [];
-  await assert.rejects(() => sendChatwootTrackingMessage(order, {}, {
-    env: { ...env, CHATWOOT_BOT_ACCESS_TOKEN: 'rocker-token', CHATWOOT_BOT_ID: '1' },
-    fetchImpl: async (input) => {
-      requests.push(new URL(input).pathname);
-      return jsonResponse(null);
-    }
-  }), /did not confirm assignment/);
-  assert.equal(requests.length, 1);
-  assert.ok(requests[0].endsWith('/assignments'));
-});
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
