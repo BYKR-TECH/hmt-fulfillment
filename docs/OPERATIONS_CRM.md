@@ -144,16 +144,7 @@ Required production env:
 - `AUTH_REQUIRED=true`
 - `CHATWOOT_BASE_URL`
 - `CHATWOOT_ACCOUNT_ID`
-- `CHATWOOT_API_TOKEN` for contact and conversation management
-- `CHATWOOT_BOT_ACCESS_TOKEN` for Rocker AgentBot outgoing messages
-- `CHATWOOT_BOT_ID` for assigning order conversations to Rocker
 - Wix, Amazon, Delhivery, FedEx, Shree Maruti credentials as needed.
-
-Order confirmations, shipment and delivery updates, tracking messages, and
-abandoned cart messages require both Rocker bot settings. The sender will not
-fall back to the human Chatwoot account if either setting is missing or bot
-assignment fails. Set these values in the shared production environment before
-merging a release that uses them.
 
 ## Deployment
 
