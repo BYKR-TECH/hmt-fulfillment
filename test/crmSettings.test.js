@@ -26,6 +26,13 @@ test('merges saved CRM shipment defaults over fallback settings', () => {
   assert.equal(settings.shipment_defaults.domesticServiceCode, 'surface');
 });
 
+test('defaults pickup and return locations to Sis Vars', () => {
+  const settings = mergeCrmSettings([]);
+
+  assert.equal(settings.pickup_defaults.pickupLocation, 'Sis Vars');
+  assert.equal(settings.pickup_defaults.returnName, 'Sis Vars');
+});
+
 test('normalizes settings form payload into typed settings', () => {
   const settings = settingsFromFormPayload({
     domestic_weight_grams: '400',
@@ -111,7 +118,7 @@ test('applies CRM settings onto runtime courier config without replacing secrets
   assert.equal(updated.defaults.internationalHeightCm, 6);
 });
 
-test('keeps env pickup location when CRM pickup setting is blank', () => {
+test('uses the Sis Vars CRM default when no pickup setting is saved', () => {
   const config = {
     wix: {},
     delhivery: {
@@ -124,7 +131,8 @@ test('keeps env pickup location when CRM pickup setting is blank', () => {
 
   const updated = applyCrmSettingsToConfig(config, settings);
 
-  assert.equal(updated.delhivery.pickupLocation, 'Env Pickup');
+  assert.equal(updated.delhivery.pickupLocation, 'Sis Vars');
+  assert.equal(updated.delhivery.returnName, 'Sis Vars');
 });
 
 test('uses environment-backed WhatsApp confirmation settings when CRM settings are unavailable', () => {
