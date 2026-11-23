@@ -17,3 +17,7 @@ exports/
 tmp/
 .codex-deploy-backup/
 *.log
+
+# TypeScript build output
+next-env.d.ts
+*.tsbuildinfo
