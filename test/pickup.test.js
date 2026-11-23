@@ -185,3 +185,18 @@ test('pickup workspace separates a booked replacement from its fulfilled origina
   assert.deepEqual(Array.from(workspace.needsPickup.flatMap(group => group.shipments), row => row.id), ['new']);
   assert.deepEqual(Array.from(workspace.pickedUp, row => row.id), ['old']);
 });
+
+test('pickup workspace removes a historical Wix import with an additional AWB', async () => {
+  const orders = { fulfillment_status: 'FULFILLED', shipment_booked_at: '2026-11-23T08:10:00Z' };
+  const original = { ...shipment, id: 'old', order_id: 'order-1', created_at: '2026-06-24T08:10:00Z', orders };
+  const imported = {
+    ...original,
+    id: 'wix-import',
+    waybill: 'DL345149495XB',
+    created_at: '2026-11-23T08:10:00Z',
+    request_payload: { source: 'wix-fulfillment' }
+  };
+  const workspace = await pickupHarness({ workspaceRows: [imported, original] }).workspace();
+  assert.equal(workspace.awaitingCount, 0);
+  assert.deepEqual(Array.from(workspace.pickedUp, row => row.id), ['old']);
+});
